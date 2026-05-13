@@ -43,8 +43,9 @@ const CONNECTORS = [
 ];
 
 async function collectTrends({ region = 'global' } = {}) {
+  const connectors = activeConnectors();
   const settled = await Promise.all(
-    CONNECTORS.map(async (connector) => {
+    connectors.map(async (connector) => {
       try {
         return {
           status: 'fulfilled',
@@ -104,6 +105,19 @@ async function collectTrends({ region = 'global' } = {}) {
   return snapshot;
 }
 
+function activeConnectors() {
+  const configured = String(process.env.ACTIVE_PLATFORMS || '').trim();
+  if (!configured) return CONNECTORS;
+
+  const ids = new Set(
+    configured
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+  return CONNECTORS.filter((connector) => ids.has(connector.id));
+}
+
 function includeInAggregate(item) {
   return ![
     'bilibili_daily',
@@ -152,5 +166,6 @@ function toConnectorStatus(connector, items) {
 
 module.exports = {
   collectTrends,
-  CONNECTORS
+  CONNECTORS,
+  activeConnectors
 };
