@@ -1,10 +1,17 @@
-const fs = require('fs');
-const path = require('path');
+function loadEnv(filePath) {
+  let fs;
+  let path;
+  try {
+    fs = require('fs');
+    path = require('path');
+  } catch {
+    return;
+  }
 
-function loadEnv(filePath = path.join(process.cwd(), '.env')) {
-  if (!fs.existsSync(filePath)) return;
+  const envPath = filePath || path.join(process.cwd(), '.env');
+  if (!fs.existsSync(envPath)) return;
 
-  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
 
   for (const line of lines) {
     const trimmed = line.trim();

@@ -1,0 +1,17 @@
+name = "hotspot-pulse"
+main = "src/worker.js"
+compatibility_date = "2026-05-13"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/health"]
+
+[triggers]
+crons = ["*/30 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hotspot-pulse"
+database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"

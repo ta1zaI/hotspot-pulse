@@ -1,5 +1,3 @@
-const { execFile } = require('child_process');
-
 const nowIso = () => new Date().toISOString();
 
 function createTrend({
@@ -76,6 +74,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 }
 
 async function fetchJsonWithPowerShell(url, headers = {}, timeoutMs = 25000) {
+  let execFile;
+  try {
+    ({ execFile } = require('child_process'));
+  } catch {
+    return fetchWithTimeout(url, { headers }, timeoutMs);
+  }
+
   const script = `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
