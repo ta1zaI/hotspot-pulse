@@ -1,0 +1,14 @@
+{
+  "name": "hotspot-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A multi-platform daily trend aggregation dashboard.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

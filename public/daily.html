@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>今日热点日报</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script defer src="/daily.js"></script>
+  </head>
+  <body>
+    <main class="daily-page">
+      <header class="daily-hero">
+        <a class="link-button" href="/">
+          <i data-lucide="arrow-left"></i>
+          返回看板
+        </a>
+        <p class="eyebrow">Hotspot Pulse</p>
+        <h1>今日热点日报</h1>
+        <p id="dailySummary">加载中...</p>
+        <div class="daily-stats">
+          <span id="dailyDate">-</span>
+          <span id="dailyCount">- 条热点</span>
+          <span id="dailyManualCount">- 条手动添加</span>
+        </div>
+      </header>
+
+      <section class="daily-section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Top picks</p>
+            <h2>今日重点</h2>
+          </div>
+        </div>
+        <div class="daily-list" id="dailyTopList"></div>
+      </section>
+
+      <section class="daily-section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">By category</p>
+            <h2>按分类整理</h2>
+          </div>
+        </div>
+        <div class="daily-category-list" id="dailyCategoryList"></div>
+      </section>
+    </main>
+  </body>
+</html>

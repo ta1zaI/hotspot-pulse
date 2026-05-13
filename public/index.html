@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hotspot Pulse</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="平台导航">
+        <div class="brand">
+          <span class="brand-mark">HP</span>
+          <div>
+            <strong>Hotspot Pulse</strong>
+            <span>今日热点聚合</span>
+          </div>
+        </div>
+
+        <div class="audience-tabs" id="platformGroupTabs" aria-label="地域筛选">
+          <button class="segment is-active" data-platform-group="all" type="button">全部</button>
+          <button class="segment" data-platform-group="domestic" type="button">国内</button>
+          <button class="segment" data-platform-group="overseas" type="button">海外</button>
+        </div>
+
+        <nav class="platform-tabs" id="platformTabs" aria-label="平台筛选">
+          <button class="tab is-active" data-platform="all" type="button">
+            <i data-lucide="radar"></i>
+            全部平台
+          </button>
+        </nav>
+
+        <details class="source-note" id="sourceDetails">
+          <summary>
+            <span>数据源状态</span>
+            <strong id="sourceMode">加载中</strong>
+          </summary>
+          <div class="connector-status-list" id="connectorStatusList"></div>
+        </details>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Daily intelligence desk</p>
+            <h1>今天全网在讨论什么？</h1>
+          </div>
+          <div class="topbar-actions">
+            <a class="link-button" id="dailyLinkButton" href="/daily.html">
+              <i data-lucide="newspaper"></i>
+              看日报
+            </a>
+            <button class="link-button" id="adminButton" type="button">
+              <i data-lucide="lock"></i>
+              管理员登录
+            </button>
+            <label class="search-box">
+              <i data-lucide="search"></i>
+              <input id="searchInput" type="search" placeholder="搜索话题、分类或平台" />
+            </label>
+            <button class="icon-button" id="refreshButton" type="button" aria-label="刷新热点">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+        </header>
+
+        <section class="metric-grid" aria-label="热点概览">
+          <article class="metric">
+            <span>聚合热点</span>
+            <strong id="clusterCount">-</strong>
+          </article>
+          <article class="metric">
+            <span>原始条目</span>
+            <strong id="itemCount">-</strong>
+          </article>
+          <article class="metric">
+            <span>覆盖平台</span>
+            <strong id="platformCount">-</strong>
+          </article>
+          <article class="metric">
+            <span>更新时间</span>
+            <strong id="updatedAt">-</strong>
+          </article>
+        </section>
+
+        <section class="daily-admin-panel" id="dailyAdminPanel" aria-label="日报编辑" hidden>
+          <div class="daily-actions">
+            <div>
+              <p class="eyebrow">Daily editor</p>
+              <h2>当前日报</h2>
+              <p class="admin-hint" id="dailyStatus">勾选热点后保存，日报固定链接会展示当前内容。</p>
+            </div>
+            <div class="daily-action-buttons">
+              <button class="ghost-button" id="clearSelectionButton" type="button">
+                <i data-lucide="trash-2"></i>
+                清空选择
+              </button>
+              <button class="link-button" id="saveDailyButton" type="button">
+                <i data-lucide="save"></i>
+                保存日报
+              </button>
+              <button class="link-button" id="pushDailyButton" type="button">
+                <i data-lucide="send"></i>
+                推送企业微信
+              </button>
+            </div>
+          </div>
+
+          <div class="daily-basket" aria-label="已选热点">
+            <div class="daily-basket-head">
+              <div>
+                <p class="eyebrow">Selected picks</p>
+                <h3>日报篮子</h3>
+              </div>
+              <strong id="basketCount">0 条</strong>
+            </div>
+            <div class="basket-list" id="basketList"></div>
+          </div>
+
+          <div class="manual-link-box">
+            <div>
+              <p class="eyebrow">Manual links</p>
+              <h3>手动添加热点</h3>
+              <p>支持粘贴抖音、小红书、B站、新闻网页链接或分享文案；抓不到标题时可以手动补。</p>
+            </div>
+            <div class="manual-form">
+              <select id="manualPlatformSelect" aria-label="链接平台">
+                <option value="auto">自动识别</option>
+                <option value="douyin">抖音分享链接</option>
+                <option value="xiaohongshu">小红书分享链接</option>
+                <option value="bilibili">B站链接</option>
+                <option value="news">新闻网页</option>
+              </select>
+              <textarea id="manualInput" rows="3" placeholder="粘贴链接或整段分享文案"></textarea>
+              <button class="link-button" id="parseManualButton" type="button">
+                <i data-lucide="scan-search"></i>
+                解析预览
+              </button>
+            </div>
+            <div class="manual-preview" id="manualPreview"></div>
+            <div class="manual-list-head">
+              <strong>手动热点池</strong>
+              <button class="ghost-button" id="clearManualButton" type="button">清空手动热点池</button>
+            </div>
+            <div class="manual-list" id="manualList"></div>
+          </div>
+        </section>
+
+        <section class="content-grid" id="contentGrid">
+          <div class="trend-board">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Ranked clusters</p>
+                <h2>综合热榜</h2>
+              </div>
+              <select id="categorySelect" aria-label="分类筛选">
+                <option value="all">全部分类</option>
+              </select>
+              <select id="contentTypeSelect" aria-label="内容形态筛选">
+                <option value="all">全部形态</option>
+                <option value="news">新闻/文章</option>
+                <option value="social">热搜/社区</option>
+              </select>
+            </div>
+            <div class="cluster-list" id="clusterList" aria-live="polite"></div>
+          </div>
+
+          <aside class="detail-panel" aria-label="详情">
+            <div class="section-head compact">
+              <div>
+                <p class="eyebrow">Source stream</p>
+                <h2>平台原榜</h2>
+              </div>
+            </div>
+            <div class="source-list" id="sourceList"></div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <div class="admin-modal" id="adminModal" hidden>
+      <form class="admin-dialog" id="adminLoginForm">
+        <div>
+          <p class="eyebrow">Admin access</p>
+          <h2>管理员验证</h2>
+          <p>输入管理员密码后，12 小时内可以保存日报、添加链接和推送企业微信。</p>
+        </div>
+        <label>
+          管理员密码
+          <input id="adminPasswordInput" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="admin-error" id="adminLoginError"></p>
+        <div class="admin-dialog-actions">
+          <button class="ghost-button" id="adminCancelButton" type="button">取消</button>
+          <button class="link-button" type="submit">
+            <i data-lucide="unlock"></i>
+            登录
+          </button>
+        </div>
+      </form>
+    </div>
+  </body>
+</html>
