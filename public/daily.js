@@ -3,24 +3,67 @@ const els = {
   date: document.querySelector('#dailyDate'),
   count: document.querySelector('#dailyCount'),
   manualCount: document.querySelector('#dailyManualCount'),
+  historySelect: document.querySelector('#dailyHistorySelect'),
   topList: document.querySelector('#dailyTopList'),
   categoryList: document.querySelector('#dailyCategoryList')
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadDaily();
+  bindEvents();
+  await loadHistory();
+  await loadDaily(selectedDateFromUrl());
   refreshIcons();
 });
 
-async function loadDaily() {
+function bindEvents() {
+  els.historySelect.addEventListener('change', () => {
+    const date = els.historySelect.value;
+    const url = new URL(window.location.href);
+    if (date) {
+      url.searchParams.set('date', date);
+    } else {
+      url.searchParams.delete('date');
+    }
+    window.history.replaceState({}, '', url);
+    loadDaily(date);
+  });
+}
+
+async function loadDaily(date = '') {
   try {
-    const response = await fetch('/api/daily');
+    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    const response = await fetch(`/api/daily${query}`);
     if (!response.ok) throw new Error('日报加载失败');
     const daily = await response.json();
     renderDaily(daily);
   } catch (error) {
     els.summary.textContent = error.message;
   }
+}
+
+async function loadHistory() {
+  try {
+    const response = await fetch('/api/daily-history');
+    if (!response.ok) throw new Error('历史日报加载失败');
+    const history = await response.json();
+    renderHistory(history.entries || []);
+  } catch {
+    renderHistory([]);
+  }
+}
+
+function renderHistory(entries) {
+  const selectedDate = selectedDateFromUrl();
+  const options = [
+    '<option value="">最新日报</option>',
+    ...entries.map((entry) => {
+      const label = `${entry.date} · ${entry.itemCount || 0} 条`;
+      return `<option value="${escapeHtml(entry.date)}">${escapeHtml(label)}</option>`;
+    })
+  ];
+
+  els.historySelect.innerHTML = options.join('');
+  els.historySelect.value = selectedDate;
 }
 
 function renderDaily(daily) {
@@ -72,6 +115,11 @@ function renderDailyItem(item) {
       </div>
     </article>
   `;
+}
+
+function selectedDateFromUrl() {
+  const date = new URLSearchParams(window.location.search).get('date') || '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
 }
 
 function refreshIcons() {

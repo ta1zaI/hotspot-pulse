@@ -1040,6 +1040,23 @@ body:not(.is-admin) .trend-card {
   font-weight: 750;
 }
 
+.daily-history-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.daily-history-control label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.daily-history-control select {
+  min-width: min(260px, 100%);
+}
+
 .daily-section {
   margin-top: 22px;
 }

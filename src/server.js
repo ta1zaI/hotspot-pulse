@@ -8,9 +8,12 @@ loadEnv();
 
 const { collectTrends } = require('./services/collector');
 const {
+  listDailyHistory,
   readDaily,
+  readDailyHistory,
   readManualLinks,
   readSnapshot,
+  writeDailyHistory,
   writeDaily,
   writeManualLinks
 } = require('./services/store');
@@ -20,6 +23,7 @@ const { parseManualLink } = require('./services/linkParser');
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '';
 const REFRESH_INTERVAL_MINUTES = Number(process.env.REFRESH_INTERVAL_MINUTES || 30);
+const DAILY_HISTORY_RETENTION_DAYS = Number(process.env.DAILY_HISTORY_RETENTION_DAYS || 365);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
 const ADMIN_COOKIE = 'hp_admin';
 const ADMIN_SESSION_HOURS = 12;
@@ -74,6 +78,11 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/daily') {
       if (req.method === 'GET') {
+        const date = url.searchParams.get('date');
+        if (date) {
+          return sendJson(res, 200, (await readDailyHistory(date)) || emptyDaily(date));
+        }
+
         return sendJson(res, 200, (await readDaily()) || emptyDaily());
       }
 
@@ -88,8 +97,16 @@ const server = http.createServer(async (req, res) => {
           selectedIds: Array.isArray(body.selectedIds) ? body.selectedIds : []
         });
         await writeDaily(daily);
+        await writeDailyHistory(daily, DAILY_HISTORY_RETENTION_DAYS);
         return sendJson(res, 200, daily);
       }
+    }
+
+    if (url.pathname === '/api/daily-history') {
+      return sendJson(res, 200, {
+        retentionDays: DAILY_HISTORY_RETENTION_DAYS,
+        entries: await listDailyHistory()
+      });
     }
 
     if (url.pathname === '/api/daily/push' && req.method === 'POST') {
@@ -271,9 +288,9 @@ function statusError(statusCode, message) {
   return error;
 }
 
-function emptyDaily() {
+function emptyDaily(date = new Date().toISOString().slice(0, 10)) {
   return {
-    date: new Date().toISOString().slice(0, 10),
+    date,
     updatedAt: '',
     selectedIds: [],
     itemCount: 0,
