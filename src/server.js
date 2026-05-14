@@ -94,8 +94,9 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/daily/push' && req.method === 'POST') {
       requireAdmin(req);
+      const body = await readJsonBody(req);
       const daily = (await readDaily()) || emptyDaily();
-      const result = await pushWeComDaily(daily, req);
+      const result = await pushWeComDaily(daily, req, body.target);
       return sendJson(res, 200, result);
     }
 
@@ -284,15 +285,19 @@ function emptyDaily() {
   };
 }
 
-async function pushWeComDaily(daily, req) {
-  const webhook = process.env.WECOM_BOT_WEBHOOK;
+async function pushWeComDaily(daily, req, target = 'prod') {
+  const channel = target === 'test' ? 'test' : 'prod';
+  const webhookEnv = channel === 'test' ? 'WECOM_TEST_BOT_WEBHOOK' : 'WECOM_BOT_WEBHOOK';
+  const webhook = process.env[webhookEnv];
   if (!webhook) {
-    throw statusError(503, '服务器还没有配置 WECOM_BOT_WEBHOOK。');
+    throw statusError(503, `服务器还没有配置 ${webhookEnv}。`);
   }
 
   const dailyUrl = process.env.PUBLIC_DAILY_URL || `${originFromRequest(req)}/daily.html`;
+  const channelLabel = channel === 'test' ? '测试群' : '正式群';
   const content = [
     `**今日热点日报已更新**`,
+    `推送通道：${channelLabel}`,
     `日期：${daily.date || new Date().toISOString().slice(0, 10)}`,
     '',
     `[查看日报](${dailyUrl})`
@@ -309,10 +314,10 @@ async function pushWeComDaily(daily, req) {
 
   const text = await response.text();
   if (!response.ok) {
-    throw statusError(502, `企业微信推送失败：${response.status} ${text}`);
+    throw statusError(502, `企业微信${channelLabel}推送失败：${response.status} ${text}`);
   }
 
-  return { ok: true, message: '企业微信日报链接已推送。' };
+  return { ok: true, target: channel, message: `企业微信日报链接已推送到${channelLabel}。` };
 }
 
 function originFromRequest(req) {

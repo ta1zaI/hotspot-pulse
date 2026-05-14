@@ -31,7 +31,8 @@ const els = {
   dailyAdminPanel: document.querySelector('#dailyAdminPanel'),
   dailyStatus: document.querySelector('#dailyStatus'),
   saveDailyButton: document.querySelector('#saveDailyButton'),
-  pushDailyButton: document.querySelector('#pushDailyButton'),
+  pushTestDailyButton: document.querySelector('#pushTestDailyButton'),
+  pushProdDailyButton: document.querySelector('#pushProdDailyButton'),
   clearSelectionButton: document.querySelector('#clearSelectionButton'),
   basketCount: document.querySelector('#basketCount'),
   basketList: document.querySelector('#basketList'),
@@ -111,7 +112,8 @@ function bindEvents() {
 
   els.adminButton.addEventListener('click', handleAdminButton);
   els.saveDailyButton.addEventListener('click', saveDaily);
-  els.pushDailyButton.addEventListener('click', pushDaily);
+  els.pushTestDailyButton.addEventListener('click', () => pushDaily('test'));
+  els.pushProdDailyButton.addEventListener('click', () => pushDaily('prod'));
   els.clearSelectionButton.addEventListener('click', clearSelection);
   els.parseManualButton.addEventListener('click', parseManualLink);
   els.clearManualButton.addEventListener('click', clearManualLinks);
@@ -375,16 +377,22 @@ async function saveDaily() {
   }
 }
 
-async function pushDaily() {
+async function pushDaily(target) {
+  const button = target === 'test' ? els.pushTestDailyButton : els.pushProdDailyButton;
+
   try {
-    setButtonBusy(els.pushDailyButton, true);
-    const response = await adminFetch('/api/daily/push', { method: 'POST' });
+    setButtonBusy(button, true);
+    const response = await adminFetch('/api/daily/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target })
+    });
     const result = await response.json();
     renderDailyStatus(result.message || '企业微信日报链接已推送。');
   } catch (error) {
     alert(error.message);
   } finally {
-    setButtonBusy(els.pushDailyButton, false);
+    setButtonBusy(button, false);
   }
 }
 
