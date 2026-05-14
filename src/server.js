@@ -35,8 +35,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/refresh' && req.method === 'POST') {
-      const snapshot = await refresh();
-      return sendJson(res, 200, snapshot);
+      const snapshot = await readSnapshot();
+      if (snapshot) {
+        const status = refreshPromise ? 'already-running' : 'started';
+        refreshInBackground();
+        return sendJson(res, 200, {
+          ...snapshot,
+          refreshStatus: status,
+          refreshRequestedAt: new Date().toISOString()
+        });
+      }
+
+      const freshSnapshot = await refresh();
+      return sendJson(res, 200, freshSnapshot);
     }
 
     if (url.pathname === '/api/admin/session') {
@@ -136,6 +147,12 @@ async function refresh() {
     });
   }
   return refreshPromise;
+}
+
+function refreshInBackground() {
+  refresh().catch((error) => {
+    console.warn(`Background trend refresh failed: ${error.message}`);
+  });
 }
 
 async function serveStatic(requestPath, res) {
