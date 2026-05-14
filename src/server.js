@@ -18,6 +18,7 @@ const { buildDaily, createManualLink } = require('./services/daily');
 const { parseManualLink } = require('./services/linkParser');
 
 const PORT = Number(process.env.PORT || 4173);
+const HOST = process.env.HOST || '';
 const REFRESH_INTERVAL_MINUTES = Number(process.env.REFRESH_INTERVAL_MINUTES || 30);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
 const ADMIN_COOKIE = 'hp_admin';
@@ -302,8 +303,9 @@ function originFromRequest(req) {
   return `${proto}://${req.headers.host}`;
 }
 
-server.listen(PORT, async () => {
-  console.log(`Hotspot Pulse is running at http://localhost:${PORT}`);
+server.listen(PORT, HOST || undefined, async () => {
+  const hostLabel = HOST || 'localhost';
+  console.log(`Hotspot Pulse is running at http://${hostLabel}:${PORT}`);
   try {
     await refresh();
     console.log('Initial trend snapshot generated.');
