@@ -31,6 +31,7 @@ const els = {
   dailyAdminPanel: document.querySelector('#dailyAdminPanel'),
   dailyStatus: document.querySelector('#dailyStatus'),
   saveDailyButton: document.querySelector('#saveDailyButton'),
+  archiveDailyButton: document.querySelector('#archiveDailyButton'),
   pushTestDailyButton: document.querySelector('#pushTestDailyButton'),
   pushProdDailyButton: document.querySelector('#pushProdDailyButton'),
   clearSelectionButton: document.querySelector('#clearSelectionButton'),
@@ -112,6 +113,7 @@ function bindEvents() {
 
   els.adminButton.addEventListener('click', handleAdminButton);
   els.saveDailyButton.addEventListener('click', saveDaily);
+  els.archiveDailyButton.addEventListener('click', archiveDaily);
   els.pushTestDailyButton.addEventListener('click', () => pushDaily('test'));
   els.pushProdDailyButton.addEventListener('click', () => pushDaily('prod'));
   els.clearSelectionButton.addEventListener('click', clearSelection);
@@ -374,6 +376,19 @@ async function saveDaily() {
     alert(error.message);
   } finally {
     setButtonBusy(els.saveDailyButton, false);
+  }
+}
+
+async function archiveDaily() {
+  try {
+    setButtonBusy(els.archiveDailyButton, true);
+    const response = await adminFetch('/api/daily/archive', { method: 'POST' });
+    const result = await response.json();
+    renderDailyStatus(result.message || '历史日报已保存。');
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    setButtonBusy(els.archiveDailyButton, false);
   }
 }
 

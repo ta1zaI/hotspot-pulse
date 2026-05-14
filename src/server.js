@@ -97,9 +97,19 @@ const server = http.createServer(async (req, res) => {
           selectedIds: Array.isArray(body.selectedIds) ? body.selectedIds : []
         });
         await writeDaily(daily);
-        await writeDailyHistory(daily, DAILY_HISTORY_RETENTION_DAYS);
         return sendJson(res, 200, daily);
       }
+    }
+
+    if (url.pathname === '/api/daily/archive' && req.method === 'POST') {
+      requireAdmin(req);
+      const daily = (await readDaily()) || emptyDaily();
+      await writeDailyHistory(daily, DAILY_HISTORY_RETENTION_DAYS);
+      return sendJson(res, 200, {
+        ok: true,
+        date: daily.date,
+        message: `已保存 ${daily.date} 的历史日报。`
+      });
     }
 
     if (url.pathname === '/api/daily-history') {
