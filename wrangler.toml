@@ -4,7 +4,7 @@ compatibility_date = "2026-05-13"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-PUBLIC_DAILY_URL = "https://ta1zai.com/daily.html"
+PUBLIC_DAILY_URL = "https://daily.ta1zai.com/daily.html"
 REFRESH_INTERVAL_MINUTES = "30"
 ACTIVE_PLATFORMS = "weibo"
 X_SOURCE = "trends24"
@@ -38,7 +38,7 @@ run_worker_first = ["/api/*", "/health"]
 crons = ["*/30 * * * *"]
 
 [[routes]]
-pattern = "ta1zai.com"
+pattern = "daily.ta1zai.com"
 custom_domain = true
 
 [[d1_databases]]
