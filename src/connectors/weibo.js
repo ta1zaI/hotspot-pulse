@@ -55,7 +55,7 @@ async function fetchFreeWeiboHot(region) {
         title,
         rank: Number(item.index || item.rank || index + 1),
         heat: parseHeat(item.hot || item.heat || item.num || item.score),
-        url: normalizeWeiboUrl(item.url || item.mobileUrl || item.mobilUrl, title),
+        url: weiboMobileSearchUrl(title),
         region,
         category: inferCategory(title),
         tags: ['weibo', 'free-api'],
@@ -103,14 +103,12 @@ async function fetchOfficialWeiboPage(region) {
       .slice(0, 60)
       .map((match, index) => {
         const title = decodeHtml(stripTags(match[2])).trim();
-        const path = match[1].startsWith('http') ? match[1] : `https://s.weibo.com${match[1]}`;
-
         return createTrend({
           platform: 'weibo',
           title,
           rank: index + 1,
           heat: parseHeat(match[3]),
-          url: path,
+          url: weiboMobileSearchUrl(title),
           region,
           category: inferCategory(title),
           tags: ['weibo', 'hot-search'],
@@ -146,21 +144,21 @@ async function decodeWeiboHtml(response) {
 
 function scoreDecodedText(value) {
   const replacementCount = (value.match(/\uFFFD/g) || []).length;
-  const commonChineseCount = (value.match(/[的一是在不了有和人这中大为上个国我以要他]/g) || []).length;
-  const mojibakeCount = (value.match(/[锟斤拷]/g) || []).length;
+  const commonChineseCount = (value.match(/[鐨勪竴鏄湪涓嶄簡鏈夊拰浜鸿繖涓ぇ涓轰笂涓浗鎴戜互瑕佷粬]/g) || []).length;
+  const mojibakeCount = (value.match(/[閿熸枻鎷穄/g) || []).length;
   return commonChineseCount - replacementCount * 20 - mojibakeCount * 10;
 }
 
 function sampleWeiboTrends(region, message = '', sourceType = 'sample') {
   const rows = [
-    ['多地文旅发布端午活动', 2810462, 'society'],
-    ['国产大模型应用周活创新高', 2360041, 'tech'],
-    ['新能源车充电新规讨论', 1905521, 'business'],
-    ['热门剧集大结局', 1689033, 'entertainment'],
-    ['高考倒计时备考建议', 1520067, 'education'],
-    ['暴雨天气出行提醒', 1412350, 'society'],
-    ['国际金价波动', 1198302, 'business'],
-    ['演唱会门票二开', 1004430, 'entertainment']
+    ['澶氬湴鏂囨梾鍙戝竷绔崍娲诲姩', 2810462, 'society'],
+    ['鍥戒骇澶фā鍨嬪簲鐢ㄥ懆娲诲垱鏂伴珮', 2360041, 'tech'],
+    ['鏂拌兘婧愯溅鍏呯數鏂拌璁ㄨ', 1905521, 'business'],
+    ['鐑棬鍓ч泦澶х粨灞€', 1689033, 'entertainment'],
+    ['楂樿€冨€掕鏃跺鑰冨缓璁?, 1520067, 'education'],
+    ['鏆撮洦澶╂皵鍑鸿鎻愰啋', 1412350, 'society'],
+    ['鍥介檯閲戜环娉㈠姩', 1198302, 'business'],
+    ['婕斿敱浼氶棬绁ㄤ簩寮€', 1004430, 'entertainment']
   ];
 
   return rows.map(([title, heat, category], index) =>
@@ -169,7 +167,7 @@ function sampleWeiboTrends(region, message = '', sourceType = 'sample') {
       title,
       rank: index + 1,
       heat,
-      url: `https://s.weibo.com/weibo?q=${encodeURIComponent(title)}`,
+      url: weiboMobileSearchUrl(title),
       region,
       category,
       tags: ['weibo', 'sample'],
@@ -199,21 +197,19 @@ function parseHeat(value = '') {
   return clean ? Number(clean) : null;
 }
 
-function normalizeWeiboUrl(url, title) {
-  if (!url || /[?&]q=(&|$)/.test(url)) {
-    return `https://s.weibo.com/weibo?q=${encodeURIComponent(title)}`;
-  }
-
-  return url;
+function weiboMobileSearchUrl(title) {
+  const query = String(title || '').replace(/^#|#$/g, '').trim();
+  const containerId = `100103type=1&q=${query}`;
+  return `https://m.weibo.cn/search?containerid=${encodeURIComponent(containerId)}`;
 }
 
 function inferCategory(title) {
-  if (/模型|AI|科技|新能源|手机|芯片|应用|神舟|任务|机器人|算力/.test(title)) return 'tech';
-  if (/金价|股票|消费|房贷|市场|车|品牌|公司|发布会/.test(title)) return 'business';
-  if (/剧|电影|演唱会|明星|综艺|艺人|票房|演员|导演/.test(title)) return 'entertainment';
-  if (/高考|学校|大学|考试|学生|教育/.test(title)) return 'education';
-  if (/天气|暴雨|出行|地震|警方|医院|通报|回应/.test(title)) return 'society';
-  if (/国乒|世界杯|比赛|夺冠|球|运动员|冠军/.test(title)) return 'sports';
+  if (/妯″瀷|AI|绉戞妧|鏂拌兘婧恷鎵嬫満|鑺墖|搴旂敤|绁炶垷|浠诲姟|鏈哄櫒浜簗绠楀姏/.test(title)) return 'tech';
+  if (/閲戜环|鑲＄エ|娑堣垂|鎴胯捶|甯傚満|杞鍝佺墝|鍏徃|鍙戝竷浼?.test(title)) return 'business';
+  if (/鍓鐢靛奖|婕斿敱浼殀鏄庢槦|缁艰壓|鑹轰汉|绁ㄦ埧|婕斿憳|瀵兼紨/.test(title)) return 'entertainment';
+  if (/楂樿€億瀛︽牎|澶у|鑰冭瘯|瀛︾敓|鏁欒偛/.test(title)) return 'education';
+  if (/澶╂皵|鏆撮洦|鍑鸿|鍦伴渿|璀︽柟|鍖婚櫌|閫氭姤|鍥炲簲/.test(title)) return 'society';
+  if (/鍥戒箳|涓栫晫鏉瘄姣旇禌|澶哄啝|鐞億杩愬姩鍛榺鍐犲啗/.test(title)) return 'sports';
   return 'general';
 }
 
