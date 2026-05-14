@@ -102,6 +102,18 @@ select {
   stroke-width: 2.4;
 }
 
+.logo-mark {
+  overflow: hidden;
+}
+
+.logo-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
 .brand strong,
 .brand span {
   display: block;
