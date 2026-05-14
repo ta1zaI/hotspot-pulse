@@ -16,6 +16,7 @@ function localPaths() {
   const dataDir = path.join(process.cwd(), 'data');
   return {
     DATA_FILE: path.join(dataDir, 'trends.json'),
+    SOURCE_CACHE_FILE: path.join(dataDir, 'source-cache.json'),
     DAILY_FILE: path.join(dataDir, 'daily.json'),
     MANUAL_LINKS_FILE: path.join(dataDir, 'manual-links.json')
   };
@@ -44,6 +45,20 @@ async function writeSnapshot(snapshot) {
   const { DATA_FILE } = localPaths();
   await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
   await fs.writeFile(DATA_FILE, JSON.stringify(snapshot, null, 2), 'utf8');
+}
+
+async function readSourceCache() {
+  if (storeAdapter) return storeAdapter.readJson('source-cache', {});
+
+  const { SOURCE_CACHE_FILE } = localPaths();
+  return readJsonFile(SOURCE_CACHE_FILE, {});
+}
+
+async function writeSourceCache(cache) {
+  if (storeAdapter) return storeAdapter.writeJson('source-cache', cache);
+
+  const { SOURCE_CACHE_FILE } = localPaths();
+  await writeJsonFile(SOURCE_CACHE_FILE, cache);
 }
 
 async function readJsonFile(filePath, fallback) {
@@ -96,7 +111,9 @@ async function writeManualLinks(links) {
 module.exports = {
   setStoreAdapter,
   readSnapshot,
+  readSourceCache,
   writeSnapshot,
+  writeSourceCache,
   readDaily,
   writeDaily,
   readManualLinks,

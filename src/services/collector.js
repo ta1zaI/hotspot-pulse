@@ -18,7 +18,7 @@ const {
 } = require('../connectors/douban');
 const { aggregateTrends } = require('./aggregator');
 const { loadEnv } = require('./env');
-const { readSnapshot, writeSnapshot } = require('./store');
+const { readSnapshot, readSourceCache, writeSnapshot, writeSourceCache } = require('./store');
 const { CATEGORY_REGISTRY, PLATFORM_REGISTRY, classifyTrend, getPlatformMeta } = require('./taxonomy');
 
 loadEnv();
@@ -45,6 +45,7 @@ const CONNECTORS = [
 async function collectTrends({ region = 'global' } = {}) {
   const connectors = activeConnectors();
   const previousSnapshot = await readSnapshot();
+  const sourceCache = await readSourceCache();
   const settled = await Promise.all(
     connectors.map(async (connector) => {
       try {
@@ -69,11 +70,19 @@ async function collectTrends({ region = 'global' } = {}) {
 
   for (const result of settled) {
     if (result.status === 'fulfilled') {
-      items.push(...result.items.map(enrichTrendItem));
-      connectorStatuses.push(toConnectorStatus(result.connector, result.items));
+      const enrichedItems = result.items.map(enrichTrendItem);
+      items.push(...enrichedItems);
+      if (enrichedItems.length) {
+        sourceCache[result.connector.id] = {
+          updatedAt: new Date().toISOString(),
+          items: enrichedItems
+        };
+      }
+      connectorStatuses.push(toConnectorStatus(result.connector, enrichedItems));
     } else {
       const message = result.error?.message || String(result.error);
-      const previousItems = previousItemsForConnector(previousSnapshot, result.connector.id);
+      const previousItems = cachedItemsForConnector(sourceCache, result.connector.id)
+        || previousItemsForConnector(previousSnapshot, result.connector.id);
       errors.push(`${result.connector.label}: ${message}`);
       if (previousItems.length) {
         items.push(...previousItems);
@@ -109,6 +118,7 @@ async function collectTrends({ region = 'global' } = {}) {
   };
 
   await writeSnapshot(snapshot);
+  await writeSourceCache(sourceCache);
   return snapshot;
 }
 
@@ -127,6 +137,11 @@ function activeConnectors() {
 
 function previousItemsForConnector(snapshot, platformId) {
   return (snapshot?.items || []).filter((item) => item.platform === platformId);
+}
+
+function cachedItemsForConnector(cache, platformId) {
+  const items = cache?.[platformId]?.items;
+  return Array.isArray(items) && items.length ? items : null;
 }
 
 function includeInAggregate(item) {
