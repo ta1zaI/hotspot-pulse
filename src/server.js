@@ -297,7 +297,6 @@ async function pushWeComDaily(daily, req, target = 'prod') {
   const channelLabel = channel === 'test' ? '测试群' : '正式群';
   const content = [
     `**今日热点日报已更新**`,
-    `推送通道：${channelLabel}`,
     `日期：${daily.date || new Date().toISOString().slice(0, 10)}`,
     '',
     `[查看日报](${dailyUrl})`
