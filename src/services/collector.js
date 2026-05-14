@@ -18,7 +18,7 @@ const {
 } = require('../connectors/douban');
 const { aggregateTrends } = require('./aggregator');
 const { loadEnv } = require('./env');
-const { writeSnapshot } = require('./store');
+const { readSnapshot, writeSnapshot } = require('./store');
 const { CATEGORY_REGISTRY, PLATFORM_REGISTRY, classifyTrend, getPlatformMeta } = require('./taxonomy');
 
 loadEnv();
@@ -44,6 +44,7 @@ const CONNECTORS = [
 
 async function collectTrends({ region = 'global' } = {}) {
   const connectors = activeConnectors();
+  const previousSnapshot = await readSnapshot();
   const settled = await Promise.all(
     connectors.map(async (connector) => {
       try {
@@ -72,14 +73,20 @@ async function collectTrends({ region = 'global' } = {}) {
       connectorStatuses.push(toConnectorStatus(result.connector, result.items));
     } else {
       const message = result.error?.message || String(result.error);
+      const previousItems = previousItemsForConnector(previousSnapshot, result.connector.id);
       errors.push(`${result.connector.label}: ${message}`);
-      connectorStatuses.push({
-        ...result.connector,
-        status: 'error',
-        sourceType: 'error',
-        itemCount: 0,
-        message
-      });
+      if (previousItems.length) {
+        items.push(...previousItems);
+        connectorStatuses.push(toCachedConnectorStatus(result.connector, previousItems, message));
+      } else {
+        connectorStatuses.push({
+          ...result.connector,
+          status: 'error',
+          sourceType: 'error',
+          itemCount: 0,
+          message
+        });
+      }
     }
   }
 
@@ -116,6 +123,10 @@ function activeConnectors() {
       .filter(Boolean)
   );
   return CONNECTORS.filter((connector) => ids.has(connector.id));
+}
+
+function previousItemsForConnector(snapshot, platformId) {
+  return (snapshot?.items || []).filter((item) => item.platform === platformId);
 }
 
 function includeInAggregate(item) {
@@ -161,6 +172,22 @@ function toConnectorStatus(connector, items) {
     sourceType: sourceTypes.join(', '),
     itemCount: items.length,
     message: items[0]?.sourceMessage || ''
+  };
+}
+
+function toCachedConnectorStatus(connector, items, errorMessage) {
+  return {
+    id: connector.id,
+    label: connector.label,
+    group: connector.group,
+    groupLabel: connector.groupLabel,
+    market: connector.market,
+    type: connector.type,
+    typeLabel: connector.typeLabel,
+    status: 'fallback',
+    sourceType: 'stale-cache',
+    itemCount: items.length,
+    message: `Using last successful data. Latest refresh failed: ${errorMessage}`
   };
 }
 

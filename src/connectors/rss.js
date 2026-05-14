@@ -1,3 +1,4 @@
+const { execFile } = require('child_process');
 const { createTrend, fetchWithTimeout } = require('./shared');
 
 async function fetchRssTrends({
@@ -12,22 +13,7 @@ async function fetchRssTrends({
 
   for (const endpoint of sources) {
     try {
-      const response = await fetchWithTimeout(
-        endpoint,
-        {
-          headers: {
-            Accept: 'application/rss+xml,text/xml,application/xml',
-            'User-Agent': 'Mozilla/5.0'
-          }
-        },
-        20000
-      );
-
-      if (!response.ok) {
-        throw new Error(`RSS request failed with ${response.status}`);
-      }
-
-      const xml = await response.text();
+      const xml = await fetchRssText(endpoint);
       const rows = parseRssItems(xml);
 
       if (!rows.length) {
@@ -55,6 +41,58 @@ async function fetchRssTrends({
   }
 
   throw new Error(errors.join(' | '));
+}
+
+async function fetchRssText(endpoint) {
+  try {
+    const response = await fetchWithTimeout(
+      endpoint,
+      {
+        headers: {
+          Accept: 'application/rss+xml,text/xml,application/xml',
+          'User-Agent': 'Mozilla/5.0'
+        }
+      },
+      20000
+    );
+
+    if (!response.ok) {
+      throw new Error(`RSS request failed with ${response.status}`);
+    }
+
+    return await response.text();
+  } catch (error) {
+    return fetchRssTextWithCurl(endpoint, error);
+  }
+}
+
+function fetchRssTextWithCurl(endpoint, originalError) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'curl',
+      [
+        '--location',
+        '--silent',
+        '--show-error',
+        '--max-time',
+        '60',
+        '--user-agent',
+        'Mozilla/5.0',
+        '--header',
+        'Accept: application/rss+xml,text/xml,application/xml',
+        endpoint
+      ],
+      { timeout: 70000, maxBuffer: 10 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`${originalError.message} | curl fallback failed: ${(stderr || error.message).trim()}`));
+          return;
+        }
+
+        resolve(stdout);
+      }
+    );
+  });
 }
 
 function parseRssItems(xml) {

@@ -1,3 +1,4 @@
+const { execFile } = require('child_process');
 const { createTrend, fetchWithTimeout } = require('./shared');
 
 const DEFAULT_NOWPLAYING_CITIES = [
@@ -123,23 +124,7 @@ async function fetchDoubanSubjects({
   sourceMessage
 }) {
   const endpoint = `https://movie.douban.com/j/search_subjects?type=${encodeURIComponent(type)}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=${limit}&page_start=0`;
-  const response = await fetchWithTimeout(
-    endpoint,
-    {
-      headers: {
-        Accept: 'application/json',
-        Referer: type === 'tv' ? 'https://movie.douban.com/tv/' : 'https://movie.douban.com/explore',
-        'User-Agent': 'Mozilla/5.0'
-      }
-    },
-    15000
-  );
-
-  if (!response.ok) {
-    throw new Error(`Douban ${type} request failed with ${response.status}`);
-  }
-
-  const payload = await response.json();
+  const payload = await fetchDoubanJson(endpoint, type);
   const rows = Array.isArray(payload.subjects) ? payload.subjects : [];
 
   return rows.map((item, index) =>
@@ -162,6 +147,60 @@ async function fetchDoubanSubjects({
       sourceMessage
     })
   );
+}
+
+async function fetchDoubanJson(endpoint, type) {
+  const headers = {
+    Accept: 'application/json',
+    Referer: type === 'tv' ? 'https://movie.douban.com/tv/' : 'https://movie.douban.com/explore',
+    'User-Agent': 'Mozilla/5.0'
+  };
+
+  try {
+    const response = await fetchWithTimeout(endpoint, { headers }, 15000);
+
+    if (!response.ok) {
+      throw new Error(`Douban ${type} request failed with ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return fetchDoubanJsonWithCurl(endpoint, headers, error);
+  }
+}
+
+function fetchDoubanJsonWithCurl(endpoint, headers, originalError) {
+  const args = [
+    '--location',
+    '--silent',
+    '--show-error',
+    '--max-time',
+    '45',
+    '--user-agent',
+    headers['User-Agent']
+  ];
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (name === 'User-Agent') continue;
+    args.push('--header', `${name}: ${value}`);
+  }
+
+  args.push(endpoint);
+
+  return new Promise((resolve, reject) => {
+    execFile('curl', args, { timeout: 55000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`${originalError.message} | curl fallback failed: ${(stderr || error.message).trim()}`));
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error(`${originalError.message} | curl fallback returned non-JSON response`));
+      }
+    });
+  });
 }
 
 function parseRate(rate) {

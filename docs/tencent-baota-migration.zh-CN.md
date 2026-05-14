@@ -50,7 +50,7 @@ PORT=4173
 REFRESH_INTERVAL_MINUTES=60
 ADMIN_PASSWORD=change-this-admin-password
 PUBLIC_DAILY_URL=https://daily.ta1zai.com/daily.html
-ACTIVE_PLATFORMS=weibo,bilibili_daily,bilibili_weekly,gameres,gamersky,threedm,gcores,gamelook,douban_nowplaying
+ACTIVE_PLATFORMS=weibo,gamersky,threedm,yystv,gcores,gameres,nadianshi,gamelook,bilibili_daily,bilibili_weekly,douban_nowplaying,douban_movie,douban_tv,x,reddit,tiktok
 WEIBO_SOURCE=official-first
 DOUBAN_NOWPLAYING_CITIES=all
 ```
