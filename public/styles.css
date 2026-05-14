@@ -889,7 +889,7 @@ body:not(.is-admin) .trend-card {
 .manual-link-box p,
 .manual-preview-card p,
 .manual-item p,
-daily-item p,
+.daily-item p,
 .daily-hero p {
   margin-bottom: 0;
   color: var(--muted);
