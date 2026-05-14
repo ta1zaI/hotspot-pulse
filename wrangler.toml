@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 PUBLIC_DAILY_URL = "https://daily.ta1zai.com/daily.html"
 REFRESH_INTERVAL_MINUTES = "30"
-ACTIVE_PLATFORMS = "weibo"
+ACTIVE_PLATFORMS = "weibo,bilibili_daily,bilibili_weekly,gameres,gamersky,threedm,gcores"
 X_SOURCE = "trends24"
 X_TRENDS24_REGION = "united-states"
 WEIBO_SOURCE = "free-api"
