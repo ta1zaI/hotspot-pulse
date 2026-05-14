@@ -5,9 +5,7 @@ async function fetchWeiboTrends({ region = 'cn' } = {}) {
 
   if (source === 'official' || source === 'official-first' || process.env.WEIBO_COOKIE) {
     const officialItems = await fetchOfficialWeiboPage(region);
-    if (officialItems.length) {
-      return officialItems;
-    }
+    if (officialItems.length) return officialItems;
   }
 
   if (source !== 'official') {
@@ -82,10 +80,7 @@ async function fetchOfficialWeiboPage(region) {
       headers.Cookie = process.env.WEIBO_COOKIE;
     }
 
-    const response = await fetchWithTimeout('https://s.weibo.com/top/summary?cate=realtimehot', {
-      headers
-    });
-
+    const response = await fetchWithTimeout('https://s.weibo.com/top/summary?cate=realtimehot', { headers });
     if (!response.ok) {
       throw new Error(`Weibo hot search request failed with ${response.status}`);
     }
@@ -94,10 +89,6 @@ async function fetchOfficialWeiboPage(region) {
     const matches = [
       ...html.matchAll(/<td class="td-02">[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>[\s\S]*?(?:<span>(.*?)<\/span>)?/g)
     ];
-
-    if (!matches.length) {
-      return [];
-    }
 
     return matches
       .slice(0, 60)
@@ -119,7 +110,7 @@ async function fetchOfficialWeiboPage(region) {
             : 'Weibo public hot-search page.'
         });
       })
-      .filter((item) => item.title && !item.url.includes('javascript:void'))
+      .filter((item) => item.title)
       .slice(0, 50);
   } catch {
     return [];
@@ -144,21 +135,17 @@ async function decodeWeiboHtml(response) {
 
 function scoreDecodedText(value) {
   const replacementCount = (value.match(/\uFFFD/g) || []).length;
-  const commonChineseCount = (value.match(/[鐨勪竴鏄湪涓嶄簡鏈夊拰浜鸿繖涓ぇ涓轰笂涓浗鎴戜互瑕佷粬]/g) || []).length;
-  const mojibakeCount = (value.match(/[閿熸枻鎷穄/g) || []).length;
-  return commonChineseCount - replacementCount * 20 - mojibakeCount * 10;
+  const hanCount = (value.match(/\p{Script=Han}/gu) || []).length;
+  const mojibakeCount = (value.match(/[\u951f\u65a4\u62f7]/g) || []).length;
+  return hanCount - replacementCount * 20 - mojibakeCount * 10;
 }
 
 function sampleWeiboTrends(region, message = '', sourceType = 'sample') {
   const rows = [
-    ['澶氬湴鏂囨梾鍙戝竷绔崍娲诲姩', 2810462, 'society'],
-    ['鍥戒骇澶фā鍨嬪簲鐢ㄥ懆娲诲垱鏂伴珮', 2360041, 'tech'],
-    ['鏂拌兘婧愯溅鍏呯數鏂拌璁ㄨ', 1905521, 'business'],
-    ['鐑棬鍓ч泦澶х粨灞€', 1689033, 'entertainment'],
-    ['楂樿€冨€掕鏃跺鑰冨缓璁?, 1520067, 'education'],
-    ['鏆撮洦澶╂皵鍑鸿鎻愰啋', 1412350, 'society'],
-    ['鍥介檯閲戜环娉㈠姩', 1198302, 'business'],
-    ['婕斿敱浼氶棬绁ㄤ簩寮€', 1004430, 'entertainment']
+    ['Weibo hot topic 1', 2810462, 'general'],
+    ['Weibo hot topic 2', 2360041, 'tech'],
+    ['Weibo hot topic 3', 1905521, 'business'],
+    ['Weibo hot topic 4', 1689033, 'entertainment']
   ];
 
   return rows.map(([title, heat, category], index) =>
@@ -204,27 +191,20 @@ function weiboMobileSearchUrl(title) {
 }
 
 function inferCategory(title) {
-  if (/妯″瀷|AI|绉戞妧|鏂拌兘婧恷鎵嬫満|鑺墖|搴旂敤|绁炶垷|浠诲姟|鏈哄櫒浜簗绠楀姏/.test(title)) return 'tech';
-  if (/閲戜环|鑲＄エ|娑堣垂|鎴胯捶|甯傚満|杞鍝佺墝|鍏徃|鍙戝竷浼?.test(title)) return 'business';
-  if (/鍓鐢靛奖|婕斿敱浼殀鏄庢槦|缁艰壓|鑹轰汉|绁ㄦ埧|婕斿憳|瀵兼紨/.test(title)) return 'entertainment';
-  if (/楂樿€億瀛︽牎|澶у|鑰冭瘯|瀛︾敓|鏁欒偛/.test(title)) return 'education';
-  if (/澶╂皵|鏆撮洦|鍑鸿|鍦伴渿|璀︽柟|鍖婚櫌|閫氭姤|鍥炲簲/.test(title)) return 'society';
-  if (/鍥戒箳|涓栫晫鏉瘄姣旇禌|澶哄啝|鐞億杩愬姩鍛榺鍐犲啗/.test(title)) return 'sports';
+  const value = String(title || '');
+  if (/AI|OpenAI|DeepSeek|iPhone|Android|Tesla|Nvidia|chip|app|tech/i.test(value)) return 'tech';
+  if (/stock|market|finance|brand|company|price|IPO|earnings/i.test(value)) return 'business';
+  if (/movie|film|music|actor|celebrity|concert|show|drama/i.test(value)) return 'entertainment';
+  if (/exam|school|student|college|education/i.test(value)) return 'education';
+  if (/NBA|FIFA|match|game|champion|cup|league/i.test(value)) return 'sports';
   return 'general';
 }
 
 function formatFetchError(error) {
   const cause = error.cause;
   const parts = [error.message];
-
-  if (cause?.code) {
-    parts.push(cause.code);
-  }
-
-  if (cause?.message && cause.message !== error.message) {
-    parts.push(cause.message);
-  }
-
+  if (cause?.code) parts.push(cause.code);
+  if (cause?.message && cause.message !== error.message) parts.push(cause.message);
   return parts.filter(Boolean).join(' / ');
 }
 
