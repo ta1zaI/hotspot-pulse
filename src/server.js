@@ -123,7 +123,7 @@ const server = http.createServer(async (req, res) => {
       requireAdmin(req);
       const body = await readJsonBody(req);
       const daily = (await readDaily()) || emptyDaily();
-      const result = await pushWeComDaily(daily, req, body.target);
+      const result = await pushFeishuDaily(daily, req, body.target);
       return sendJson(res, 200, result);
     }
 
@@ -312,9 +312,9 @@ function emptyDaily(date = new Date().toISOString().slice(0, 10)) {
   };
 }
 
-async function pushWeComDaily(daily, req, target = 'prod') {
+async function pushFeishuDaily(daily, req, target = 'prod') {
   const channel = target === 'test' ? 'test' : 'prod';
-  const webhookEnv = channel === 'test' ? 'WECOM_TEST_BOT_WEBHOOK' : 'WECOM_BOT_WEBHOOK';
+  const webhookEnv = channel === 'test' ? 'FEISHU_TEST_BOT_WEBHOOK' : 'FEISHU_BOT_WEBHOOK';
   const webhook = process.env[webhookEnv];
   if (!webhook) {
     throw statusError(503, `服务器还没有配置 ${webhookEnv}。`);
@@ -322,28 +322,42 @@ async function pushWeComDaily(daily, req, target = 'prod') {
 
   const dailyUrl = process.env.PUBLIC_DAILY_URL || `${originFromRequest(req)}/daily.html`;
   const channelLabel = channel === 'test' ? '测试群' : '正式群';
-  const content = [
-    `**今日热点日报已更新**`,
-    `日期：${daily.date || new Date().toISOString().slice(0, 10)}`,
-    '',
-    `[查看日报](${dailyUrl})`
-  ].join('\n');
+  const dailyDate = daily.date || new Date().toISOString().slice(0, 10);
 
   const response = await fetch(webhook, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      msgtype: 'markdown',
-      markdown: { content }
+      msg_type: 'post',
+      content: {
+        post: {
+          zh_cn: {
+            title: '身梦TV 今日热点日报已更新',
+            content: [
+              [{ tag: 'text', text: `日期：${dailyDate}` }],
+              [{ tag: 'a', text: '查看日报', href: dailyUrl }]
+            ]
+          }
+        }
+      }
     })
   });
 
   const text = await response.text();
   if (!response.ok) {
-    throw statusError(502, `企业微信${channelLabel}推送失败：${response.status} ${text}`);
+    throw statusError(502, `飞书${channelLabel}推送失败：${response.status} ${text}`);
   }
 
-  return { ok: true, target: channel, message: `企业微信日报链接已推送到${channelLabel}。` };
+  try {
+    const payload = JSON.parse(text);
+    if (payload.code && payload.code !== 0) {
+      throw statusError(502, `飞书${channelLabel}推送失败：${payload.msg || text}`);
+    }
+  } catch (error) {
+    if (error.statusCode) throw error;
+  }
+
+  return { ok: true, target: channel, message: `飞书日报链接已推送到${channelLabel}。` };
 }
 
 function originFromRequest(req) {

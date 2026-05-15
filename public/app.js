@@ -403,7 +403,7 @@ async function pushDaily(target) {
       body: JSON.stringify({ target })
     });
     const result = await response.json();
-    renderDailyStatus(result.message || '企业微信日报链接已推送。');
+    renderDailyStatus(result.message || '飞书日报链接已推送。');
   } catch (error) {
     alert(error.message);
   } finally {
