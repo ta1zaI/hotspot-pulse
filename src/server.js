@@ -332,7 +332,7 @@ async function pushFeishuDaily(daily, req, target = 'prod') {
       content: {
         post: {
           zh_cn: {
-            title: '身梦TV 今日热点日报已更新',
+            title: '今日热点日报已更新',
             content: [
               [{ tag: 'text', text: `日期：${dailyDate}` }],
               [{ tag: 'a', text: '查看日报', href: dailyUrl }]
