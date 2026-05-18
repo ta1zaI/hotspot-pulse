@@ -77,7 +77,7 @@ function renderDaily(daily) {
     return;
   }
 
-  els.topList.innerHTML = items.slice(0, 8).map(renderDailyItem).join('');
+  els.topList.innerHTML = items.map(renderDailyItem).join('');
 }
 
 function renderDailyItem(item) {
