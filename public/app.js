@@ -365,7 +365,7 @@ async function saveDaily() {
     const response = await adminFetch('/api/daily', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selectedIds: [...state.selectedIds] })
+      body: JSON.stringify({ selectedIds: selectedItemIds() })
     });
     state.daily = await response.json();
     state.selectedIds = new Set(state.daily.selectedIds || []);
@@ -820,6 +820,10 @@ function selectedItems() {
     .filter(Boolean);
 }
 
+function selectedItemIds() {
+  return selectedItems().map((item) => item.id);
+}
+
 function basketCluster(cluster) {
   return {
     id: cluster.id,
@@ -861,7 +865,7 @@ function renderAdminState() {
 }
 
 function renderDailyStatus(message = '') {
-  const selectedCount = state.selectedIds.size;
+  const selectedCount = selectedItemIds().length;
   const savedCount = state.daily?.itemCount || 0;
   if (message) {
     els.dailyStatus.textContent = message;
