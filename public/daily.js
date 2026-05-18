@@ -4,8 +4,7 @@ const els = {
   count: document.querySelector('#dailyCount'),
   manualCount: document.querySelector('#dailyManualCount'),
   historySelect: document.querySelector('#dailyHistorySelect'),
-  topList: document.querySelector('#dailyTopList'),
-  categoryList: document.querySelector('#dailyCategoryList')
+  topList: document.querySelector('#dailyTopList')
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -75,23 +74,10 @@ function renderDaily(daily) {
   const items = daily.items || [];
   if (!items.length) {
     els.topList.innerHTML = '<div class="empty-state">日报还没有内容。管理员保存日报后，这里会自动更新。</div>';
-    els.categoryList.innerHTML = '';
     return;
   }
 
   els.topList.innerHTML = items.slice(0, 8).map(renderDailyItem).join('');
-  els.categoryList.innerHTML = (daily.sections || []).map(renderSection).join('');
-}
-
-function renderSection(section) {
-  return `
-    <article class="daily-category">
-      <h3>${escapeHtml(section.label)}</h3>
-      <div class="daily-list">
-        ${(section.items || []).map(renderDailyItem).join('')}
-      </div>
-    </article>
-  `;
 }
 
 function renderDailyItem(item) {
