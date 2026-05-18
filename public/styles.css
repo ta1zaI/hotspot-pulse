@@ -103,6 +103,9 @@ select {
 }
 
 .logo-mark {
+  background: #fff;
+  border: 1px solid rgba(29, 37, 40, 0.08);
+  box-shadow: 0 8px 20px rgba(29, 37, 40, 0.1);
   overflow: hidden;
 }
 
