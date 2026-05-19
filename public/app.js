@@ -735,7 +735,7 @@ function renderManualLinks() {
     .map((item) => {
       const checked = state.selectedIds.has(item.id) ? 'checked' : '';
       return `
-        <article class="manual-item">
+        <article class="manual-item ${item.image ? '' : 'manual-item-no-image'}">
           <label class="select-check" title="加入当前日报">
             <input type="checkbox" data-select-id="${escapeHtml(item.id)}" ${checked} />
             <span></span>

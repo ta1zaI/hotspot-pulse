@@ -975,13 +975,17 @@ body:not(.is-admin) .trend-card {
 
 .manual-item {
   display: grid;
-  grid-template-columns: 30px 90px minmax(0, 1fr);
+  grid-template-columns: 30px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   padding: 12px;
   border: 1px solid rgba(29, 37, 40, 0.08);
   border-radius: 8px;
   background: #fff;
+}
+
+.manual-item:has(> img) {
+  grid-template-columns: 30px 90px minmax(0, 1fr);
 }
 
 .manual-item img {
