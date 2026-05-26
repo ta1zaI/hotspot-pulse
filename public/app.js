@@ -489,14 +489,14 @@ function hydrateCategories() {
 function renderPlatformTabs() {
   const connectors = state.snapshot?.connectors || [];
   const typeOrder = [
+    'ai-news',
+    'gaming-news',
+    'gaming-industry',
     'social-trend',
     'community',
     'short-video',
     'video',
     'film-tv',
-    'ai-news',
-    'gaming-news',
-    'gaming-industry',
     'unknown'
   ];
   const typeLabels = {
