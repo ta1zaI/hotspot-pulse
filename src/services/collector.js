@@ -153,6 +153,7 @@ function includeInAggregate(item) {
     'douban_nowplaying',
     'douban_movie',
     'douban_tv',
+    'reddit',
     'tiktok',
     'x'
   ].includes(item.platform);
