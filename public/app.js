@@ -18,6 +18,8 @@ const els = {
   platformTabs: document.querySelector('#platformTabs'),
   categorySelect: document.querySelector('#categorySelect'),
   contentTypeSelect: document.querySelector('#contentTypeSelect'),
+  detailCategorySelect: document.querySelector('#detailCategorySelect'),
+  detailContentTypeSelect: document.querySelector('#detailContentTypeSelect'),
   contentGrid: document.querySelector('#contentGrid'),
   searchInput: document.querySelector('#searchInput'),
   refreshButton: document.querySelector('#refreshButton'),
@@ -59,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadSession(), loadDaily(), loadTrends()]);
   if (state.authenticated) await loadManualLinks();
   refreshIcons();
+  window.hpMotion?.pageEnter();
 });
 
 function bindEvents() {
@@ -97,7 +100,17 @@ function bindEvents() {
     render();
   });
 
+  els.detailCategorySelect.addEventListener('change', (event) => {
+    state.category = event.target.value;
+    render();
+  });
+
   els.contentTypeSelect.addEventListener('change', (event) => {
+    state.contentType = validContentType(event.target.value);
+    render();
+  });
+
+  els.detailContentTypeSelect.addEventListener('change', (event) => {
     state.contentType = validContentType(event.target.value);
     render();
   });
@@ -466,9 +479,11 @@ function hydrateCategories() {
     '<option value="all">全部分类</option>',
     ...sortedCategories.map((category) => `<option value="${escapeHtml(category)}">${categoryLabel(category)}</option>`)
   ].join('');
+  els.detailCategorySelect.innerHTML = els.categorySelect.innerHTML;
 
   els.categorySelect.value = categories.has(current) && current !== 'meme' ? current : 'all';
   state.category = els.categorySelect.value;
+  els.detailCategorySelect.value = state.category;
 }
 
 function renderPlatformTabs() {
@@ -479,6 +494,7 @@ function renderPlatformTabs() {
     'short-video',
     'video',
     'film-tv',
+    'ai-news',
     'gaming-news',
     'gaming-industry',
     'unknown'
@@ -489,6 +505,7 @@ function renderPlatformTabs() {
     'short-video': '短视频趋势',
     video: '视频榜单',
     'film-tv': '影视榜单',
+    'ai-news': 'AI 动态',
     'gaming-news': '游戏媒体',
     'gaming-industry': '游戏产业',
     unknown: '其他平台'
@@ -502,6 +519,7 @@ function renderPlatformTabs() {
     gameres: 'briefcase-business',
     nadianshi: 'grape',
     gamelook: 'line-chart',
+    aihot: 'bot',
     bilibili_daily: 'play-square',
     bilibili_weekly: 'calendar-days',
     douban_nowplaying: 'ticket',
@@ -580,11 +598,15 @@ function render() {
   renderBasket();
   renderDailyStatus();
   refreshIcons();
+  window.hpMotion?.renderUpdate({ platform: state.platform });
 }
 
 function filteredClusters() {
   state.contentType = validContentType(state.contentType);
   els.contentTypeSelect.value = state.contentType;
+  els.detailContentTypeSelect.value = state.contentType;
+  els.categorySelect.value = state.category;
+  els.detailCategorySelect.value = state.category;
 
   return (state.snapshot.clusters || []).filter((cluster) => {
     const platformMatch = state.platform === 'all' || cluster.platforms.includes(state.platform);
@@ -896,6 +918,7 @@ function renderConnectorStatuses(connectors) {
 function setLoading(isLoading) {
   els.refreshButton.classList.toggle('is-loading', isLoading);
   els.refreshButton.disabled = isLoading;
+  window.hpMotion?.setLoading(isLoading);
 }
 
 function setButtonBusy(button, isBusy) {
@@ -958,6 +981,7 @@ function platformLabel(platform) {
       gameres: 'GameRes',
       nadianshi: '游戏葡萄',
       gamelook: 'GameLook',
+      aihot: 'AI HOT',
       bilibili_daily: 'B站日榜',
       bilibili_weekly: 'B站周榜',
       douban_nowplaying: '豆瓣热映',
@@ -979,6 +1003,7 @@ function platformGroupFor(platform) {
 function contentTypeFor(item) {
   const type = (state.snapshot?.connectors || []).find((connector) => connector.id === item.platform)?.type;
   if (type === 'video' || type === 'short-video' || type === 'film-tv') return 'video';
+  if (type === 'ai-news') return 'news';
   if (type === 'gaming-news' || type === 'gaming-industry') return 'news';
   if (type === 'social-trend' || type === 'community') return 'social';
   return 'news';

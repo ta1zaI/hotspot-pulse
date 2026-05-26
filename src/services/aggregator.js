@@ -2,6 +2,7 @@ const { nowIso } = require('../connectors/shared');
 
 const PLATFORM_WEIGHT = {
   weibo: 1.15,
+  aihot: 0.94,
   reddit: 0.98,
   gamersky: 0.9,
   threedm: 0.9,

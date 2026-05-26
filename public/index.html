@@ -6,6 +6,8 @@
     <title>身梦TV</title>
     <link rel="stylesheet" href="/styles.css" />
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script defer src="https://unpkg.com/gsap@3/dist/gsap.min.js"></script>
+    <script defer src="/motion.js"></script>
     <script defer src="/app.js"></script>
   </head>
   <body>
@@ -165,14 +167,16 @@
                 <p class="eyebrow">Ranked clusters</p>
                 <h2>综合热榜</h2>
               </div>
-              <select id="categorySelect" aria-label="分类筛选">
-                <option value="all">全部分类</option>
-              </select>
-              <select id="contentTypeSelect" aria-label="内容形态筛选">
-                <option value="all">全部形态</option>
-                <option value="news">新闻/文章</option>
-                <option value="social">热搜/社区</option>
-              </select>
+              <div class="filter-controls" aria-label="综合热榜筛选">
+                <select id="categorySelect" aria-label="分类筛选">
+                  <option value="all">全部分类</option>
+                </select>
+                <select id="contentTypeSelect" aria-label="内容形态筛选">
+                  <option value="all">全部形态</option>
+                  <option value="news">新闻/文章</option>
+                  <option value="social">热搜/社区</option>
+                </select>
+              </div>
             </div>
             <div class="cluster-list" id="clusterList" aria-live="polite"></div>
           </div>
@@ -182,6 +186,16 @@
               <div>
                 <p class="eyebrow">Source stream</p>
                 <h2>平台原榜</h2>
+              </div>
+              <div class="filter-controls" aria-label="平台原榜筛选">
+                <select id="detailCategorySelect" aria-label="平台原榜分类筛选">
+                  <option value="all">全部分类</option>
+                </select>
+                <select id="detailContentTypeSelect" aria-label="平台原榜内容形态筛选">
+                  <option value="all">全部形态</option>
+                  <option value="news">新闻/文章</option>
+                  <option value="social">热搜/社区</option>
+                </select>
               </div>
             </div>
             <div class="source-list" id="sourceList"></div>

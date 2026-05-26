@@ -11,6 +11,7 @@ const { fetchBilibiliWeeklyTrends } = require('../connectors/bilibiliWeekly');
 const { fetchGameresTrends } = require('../connectors/gameres');
 const { fetchNadianshiTrends } = require('../connectors/nadianshi');
 const { fetchGamelookTrends } = require('../connectors/gamelook');
+const { fetchAiHotTrends } = require('../connectors/aihot');
 const {
   fetchDoubanMovieTrends,
   fetchDoubanNowPlayingTrends,
@@ -32,6 +33,7 @@ const CONNECTORS = [
   { ...PLATFORM_REGISTRY.gameres, run: fetchGameresTrends },
   { ...PLATFORM_REGISTRY.nadianshi, run: fetchNadianshiTrends },
   { ...PLATFORM_REGISTRY.gamelook, run: fetchGamelookTrends },
+  { ...PLATFORM_REGISTRY.aihot, run: fetchAiHotTrends },
   { ...PLATFORM_REGISTRY.bilibili_daily, run: fetchBilibiliDailyTrends },
   { ...PLATFORM_REGISTRY.bilibili_weekly, run: fetchBilibiliWeeklyTrends },
   { ...PLATFORM_REGISTRY.douban_nowplaying, run: fetchDoubanNowPlayingTrends },

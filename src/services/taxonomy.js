@@ -10,6 +10,7 @@ const PLATFORM_REGISTRY = {
   gameres: platform('gameres', 'GameRes', 'domestic', '国内', 'CN', 'gaming-industry', '游戏产业'),
   nadianshi: platform('nadianshi', '手游那点事', 'domestic', '国内', 'CN', 'gaming-industry', '游戏产业'),
   gamelook: platform('gamelook', 'GameLook', 'domestic', '国内', 'CN', 'gaming-industry', '游戏产业'),
+  aihot: platform('aihot', 'AI HOT', 'domestic', '国内', 'CN', 'ai-news', 'AI 动态'),
   bilibili_daily: platform('bilibili_daily', 'B站日榜', 'domestic', '国内', 'CN', 'video', '视频榜单'),
   bilibili_weekly: platform('bilibili_weekly', 'B站周榜', 'domestic', '国内', 'CN', 'video', '视频榜单'),
   douban_nowplaying: platform('douban_nowplaying', '豆瓣影院热映', 'domestic', '国内', 'CN', 'film-tv', '影视榜单'),
