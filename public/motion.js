@@ -24,29 +24,7 @@
 
   function renderUpdate({ platform = 'all' } = {}) {
     if (!canAnimate()) return;
-
-    const tick = ++renderTick;
-    window.requestAnimationFrame(() => {
-      if (tick !== renderTick) return;
-
-      const listSelector = platform === 'all' ? '.trend-card' : '.source-item';
-      const rows = Array.from(document.querySelectorAll(listSelector)).slice(0, 36);
-      if (rows.length) {
-        window.gsap.fromTo(
-          rows,
-          { autoAlpha: 0, y: 8 },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: 0.32,
-            stagger: 0.014,
-            ease: 'power2.out',
-            overwrite: true
-          }
-        );
-      }
-
-    });
+    renderTick += 1;
   }
 
   function setLoading(isLoading) {

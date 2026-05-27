@@ -149,6 +149,21 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    const manualImageMatch = url.pathname.match(/^\/api\/manual-links\/([^/]+)\/image$/);
+    if (manualImageMatch && req.method === 'DELETE') {
+      requireAdmin(req);
+      const manualId = decodeURIComponent(manualImageMatch[1]);
+      const links = await readManualLinks();
+      const index = links.findIndex((item) => item.id === manualId);
+      if (index === -1) {
+        throw statusError(404, '没有找到这条手动热点。');
+      }
+
+      links[index] = { ...links[index], image: '' };
+      await writeManualLinks(links);
+      return sendJson(res, 200, links[index]);
+    }
+
     if (url.pathname === '/api/manual-links/parse' && req.method === 'POST') {
       requireAdmin(req);
       const body = await readJsonBody(req);

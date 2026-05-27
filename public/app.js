@@ -150,6 +150,12 @@ function bindEvents() {
     await handleSelectionChange(input);
   });
 
+  els.manualList.addEventListener('click', async (event) => {
+    const button = event.target.closest('button[data-clear-saved-manual-image]');
+    if (!button) return;
+    await clearSavedManualImage(button.dataset.clearSavedManualImage);
+  });
+
   els.sourceList.addEventListener('change', async (event) => {
     const input = event.target.closest('input[data-select-id]');
     if (!input) return;
@@ -166,6 +172,16 @@ function bindEvents() {
     event.preventDefault();
     const form = event.target.closest('form');
     await saveManualLink(Object.fromEntries(new FormData(form).entries()));
+  });
+
+  els.manualPreview.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-clear-manual-image]');
+    if (!button) return;
+
+    const form = button.closest('form');
+    form?.querySelector('input[name="image"]')?.setAttribute('value', '');
+    form?.querySelector('.manual-preview-image')?.remove();
+    button.remove();
   });
 }
 
@@ -367,6 +383,23 @@ async function clearManualLinks() {
     renderManualLinks();
     renderBasket();
     renderDailyStatus('手动热点池已清空。');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function clearSavedManualImage(id) {
+  if (!id) return;
+
+  try {
+    const response = await adminFetch(`/api/manual-links/${encodeURIComponent(id)}/image`, {
+      method: 'DELETE'
+    });
+    const updated = await response.json();
+    state.manualLinks = state.manualLinks.map((item) => (item.id === updated.id ? updated : item));
+    renderManualLinks();
+    renderBasket();
+    renderDailyStatus('这条手动热点的图片已删除；如果已保存到日报，请重新保存日报同步。');
   } catch (error) {
     alert(error.message);
   }
@@ -722,7 +755,7 @@ function renderSources() {
 function renderManualPreview(parsed) {
   els.manualPreview.innerHTML = `
     <form class="manual-preview-card">
-      ${parsed.image ? `<img src="${escapeHtml(parsed.image)}" alt="" />` : ''}
+      ${parsed.image ? `<div class="manual-preview-image"><img src="${escapeHtml(parsed.image)}" alt="" /><button class="ghost-button" data-clear-manual-image type="button"><i data-lucide="image-off"></i> 不要图片</button></div>` : ''}
       <label>标题<input name="title" value="${escapeHtml(parsed.title)}" required /></label>
       <label>摘要<textarea name="summary" rows="3">${escapeHtml(parsed.summary)}</textarea></label>
       <label>来源<input name="sourceLabel" value="${escapeHtml(parsed.sourceLabel)}" /></label>
@@ -762,7 +795,7 @@ function renderManualLinks() {
             <input type="checkbox" data-select-id="${escapeHtml(item.id)}" ${checked} />
             <span></span>
           </label>
-          ${item.image ? `<img src="${escapeHtml(item.image)}" alt="" />` : ''}
+          ${item.image ? `<div class="manual-item-image"><img src="${escapeHtml(item.image)}" alt="" /><button class="ghost-button" data-clear-saved-manual-image="${escapeHtml(item.id)}" type="button"><i data-lucide="image-off"></i> 删除图片</button></div>` : ''}
           <div>
             <h4>${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>` : `<span>${escapeHtml(item.title)}</span>`}</h4>
             <p>${escapeHtml(item.summary || '暂无摘要')}</p>

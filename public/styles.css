@@ -951,13 +951,25 @@ body:not(.is-admin) .trend-card {
   background: #f8fbfa;
 }
 
-.manual-preview-card img {
+.manual-preview-image {
   grid-row: span 4;
+  display: grid;
+  gap: 8px;
+}
+
+.manual-preview-image img {
   width: 120px;
   height: 90px;
   object-fit: cover;
   border-radius: 8px;
   background: #edf2f1;
+}
+
+.manual-preview-image button {
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+  box-shadow: none;
 }
 
 .manual-preview-card label {
@@ -996,16 +1008,28 @@ body:not(.is-admin) .trend-card {
   background: #fff;
 }
 
-.manual-item:has(> img) {
+.manual-item:has(> .manual-item-image) {
   grid-template-columns: 30px 90px minmax(0, 1fr);
 }
 
-.manual-item img {
+.manual-item-image {
+  display: grid;
+  gap: 6px;
+}
+
+.manual-item-image img {
   width: 90px;
   height: 68px;
   object-fit: cover;
   border-radius: 8px;
   background: #edf2f1;
+}
+
+.manual-item-image button {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+  box-shadow: none;
 }
 
 .manual-item h4 {
@@ -1209,8 +1233,11 @@ body:not(.is-admin) .trend-card {
     justify-content: flex-start;
   }
 
-  .manual-preview-card img {
+  .manual-preview-image {
     grid-row: auto;
+  }
+
+  .manual-preview-image img {
     width: 100%;
     height: auto;
     aspect-ratio: 16 / 9;
@@ -1251,7 +1278,7 @@ body:not(.is-admin) .trend-card {
     grid-template-columns: 1fr;
   }
 
-  .manual-item img,
+  .manual-item-image img,
   .daily-item img {
     width: 100%;
     height: auto;
