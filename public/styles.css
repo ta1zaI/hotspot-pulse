@@ -310,6 +310,61 @@ select {
   overflow-wrap: anywhere;
 }
 
+.source-refresh-row {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.source-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: rgba(236, 253, 245, 0.78);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+  white-space: nowrap;
+}
+
+.source-refresh-button:hover {
+  border-color: rgba(15, 118, 110, 0.42);
+  background: rgba(204, 251, 241, 0.78);
+  transform: translateY(-1px);
+}
+
+.source-refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.66;
+  transform: none;
+}
+
+.source-refresh-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.source-refresh-button.is-loading svg {
+  animation: spin 0.85s linear infinite;
+}
+
+.source-refresh-row small {
+  min-height: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .connector-status-list {
   display: grid;
   gap: 8px;
@@ -885,9 +940,20 @@ body:not(.is-admin) .trend-card {
   font-size: 14px;
 }
 
+.daily-basket {
+  grid-template-rows: auto minmax(168px, 168px);
+}
+
 .basket-list {
   display: grid;
+  align-content: start;
   gap: 10px;
+  height: 168px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .basket-item {
@@ -904,6 +970,10 @@ body:not(.is-admin) .trend-card {
 .basket-item h4 {
   margin: 0 0 8px;
   overflow-wrap: anywhere;
+}
+
+.basket-list .empty-state {
+  min-height: 100%;
 }
 
 .basket-remove {
@@ -970,6 +1040,7 @@ body:not(.is-admin) .trend-card {
   padding: 0 8px;
   font-size: 12px;
   box-shadow: none;
+  white-space: nowrap;
 }
 
 .manual-preview-card label {
@@ -1009,7 +1080,7 @@ body:not(.is-admin) .trend-card {
 }
 
 .manual-item:has(> .manual-item-image) {
-  grid-template-columns: 30px 90px minmax(0, 1fr);
+  grid-template-columns: 30px 104px minmax(0, 1fr);
 }
 
 .manual-item-image {
@@ -1018,7 +1089,7 @@ body:not(.is-admin) .trend-card {
 }
 
 .manual-item-image img {
-  width: 90px;
+  width: 104px;
   height: 68px;
   object-fit: cover;
   border-radius: 8px;
@@ -1030,6 +1101,7 @@ body:not(.is-admin) .trend-card {
   padding: 0 8px;
   font-size: 12px;
   box-shadow: none;
+  white-space: nowrap;
 }
 
 .manual-item h4 {

@@ -39,6 +39,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/refresh' && req.method === 'POST') {
+      const waitForFreshSnapshot = url.searchParams.get('wait') === '1';
+      if (waitForFreshSnapshot) {
+        const freshSnapshot = await refresh();
+        return sendJson(res, 200, {
+          ...freshSnapshot,
+          refreshStatus: 'completed',
+          refreshRequestedAt: new Date().toISOString()
+        });
+      }
+
       const snapshot = await readSnapshot();
       if (snapshot) {
         const status = refreshPromise ? 'already-running' : 'started';

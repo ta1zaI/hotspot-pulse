@@ -29,6 +29,8 @@ const els = {
   updatedAt: document.querySelector('#updatedAt'),
   sourceMode: document.querySelector('#sourceMode'),
   connectorStatusList: document.querySelector('#connectorStatusList'),
+  sourceRefreshButton: document.querySelector('#sourceRefreshButton'),
+  sourceRefreshStatus: document.querySelector('#sourceRefreshStatus'),
   adminButton: document.querySelector('#adminButton'),
   dailyAdminPanel: document.querySelector('#dailyAdminPanel'),
   dailyStatus: document.querySelector('#dailyStatus'),
@@ -124,6 +126,10 @@ function bindEvents() {
     await loadTrends({ refresh: true });
   });
 
+  els.sourceRefreshButton?.addEventListener('click', async () => {
+    await manualRefreshSources();
+  });
+
   els.adminButton.addEventListener('click', handleAdminButton);
   els.saveDailyButton.addEventListener('click', saveDaily);
   els.archiveDailyButton.addEventListener('click', archiveDaily);
@@ -207,10 +213,11 @@ async function loadManualLinks() {
   renderBasket();
 }
 
-async function loadTrends({ refresh = false } = {}) {
+async function loadTrends({ refresh = false, wait = false, throwOnError = false } = {}) {
   setLoading(true);
   try {
-    const response = await fetch(refresh ? '/api/refresh' : '/api/trends', {
+    const endpoint = refresh ? `/api/refresh${wait ? '?wait=1' : ''}` : '/api/trends';
+    const response = await fetch(endpoint, {
       method: refresh ? 'POST' : 'GET'
     });
 
@@ -224,6 +231,7 @@ async function loadTrends({ refresh = false } = {}) {
     render();
   } catch (error) {
     els.clusterList.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    if (throwOnError) throw error;
   } finally {
     setLoading(false);
   }
@@ -385,6 +393,20 @@ async function clearManualLinks() {
     renderDailyStatus('手动热点池已清空。');
   } catch (error) {
     alert(error.message);
+  }
+}
+
+async function manualRefreshSources() {
+  setSourceRefreshStatus('正在尝试拉取数据源...');
+  setButtonBusy(els.sourceRefreshButton, true);
+
+  try {
+    await loadTrends({ refresh: true, wait: true, throwOnError: true });
+    setSourceRefreshStatus(`已完成：${formatTime(new Date().toISOString())}`);
+  } catch (error) {
+    setSourceRefreshStatus(error.message || '拉取失败，请稍后再试');
+  } finally {
+    setButtonBusy(els.sourceRefreshButton, false);
   }
 }
 
@@ -951,10 +973,20 @@ function renderConnectorStatuses(connectors) {
 function setLoading(isLoading) {
   els.refreshButton.classList.toggle('is-loading', isLoading);
   els.refreshButton.disabled = isLoading;
+  if (els.sourceRefreshButton) {
+    els.sourceRefreshButton.disabled = isLoading;
+    els.sourceRefreshButton.classList.toggle('is-loading', isLoading);
+  }
   window.hpMotion?.setLoading(isLoading);
 }
 
+function setSourceRefreshStatus(message) {
+  if (!els.sourceRefreshStatus) return;
+  els.sourceRefreshStatus.textContent = message || '';
+}
+
 function setButtonBusy(button, isBusy) {
+  if (!button) return;
   button.disabled = isBusy;
   button.classList.toggle('is-loading', isBusy);
 }

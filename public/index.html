@@ -41,6 +41,13 @@
             <span>数据源状态</span>
             <strong id="sourceMode">加载中</strong>
           </summary>
+          <div class="source-refresh-row">
+            <button class="source-refresh-button" id="sourceRefreshButton" type="button">
+              <i data-lucide="rotate-cw"></i>
+              手动拉取数据源
+            </button>
+            <small id="sourceRefreshStatus"></small>
+          </div>
           <div class="connector-status-list" id="connectorStatusList"></div>
         </details>
       </aside>
