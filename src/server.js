@@ -24,6 +24,7 @@ const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '';
 const REFRESH_INTERVAL_MINUTES = Number(process.env.REFRESH_INTERVAL_MINUTES || 30);
 const DAILY_HISTORY_RETENTION_DAYS = Number(process.env.DAILY_HISTORY_RETENTION_DAYS || 365);
+const FEISHU_PUSH_TIMEOUT_MS = Number(process.env.FEISHU_PUSH_TIMEOUT_MS || 15000);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
 const ADMIN_COOKIE = 'hp_admin';
 const ADMIN_SESSION_HOURS = 12;
@@ -114,7 +115,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/daily/archive' && req.method === 'POST') {
       requireAdmin(req);
       const daily = (await readDaily()) || emptyDaily();
-      await writeDailyHistory(daily, DAILY_HISTORY_RETENTION_DAYS);
+      await archiveDailySnapshot(daily);
       return sendJson(res, 200, {
         ok: true,
         date: daily.date,
@@ -133,8 +134,14 @@ const server = http.createServer(async (req, res) => {
       requireAdmin(req);
       const body = await readJsonBody(req);
       const daily = (await readDaily()) || emptyDaily();
+      const archive = await archiveDailySnapshot(daily);
       const result = await pushFeishuDaily(daily, req, body.target);
-      return sendJson(res, 200, result);
+      return sendJson(res, 200, {
+        ...result,
+        archived: true,
+        archivedDate: archive.date,
+        message: `${result.message} 历史已自动保存：${archive.date}。`
+      });
     }
 
     if (url.pathname === '/api/manual-links') {
@@ -323,6 +330,12 @@ function statusError(statusCode, message) {
   return error;
 }
 
+async function archiveDailySnapshot(daily) {
+  const date = daily?.date || new Date().toISOString().slice(0, 10);
+  await writeDailyHistory(daily, DAILY_HISTORY_RETENTION_DAYS);
+  return { date };
+}
+
 function emptyDaily(date = new Date().toISOString().slice(0, 10)) {
   return {
     date,
@@ -349,10 +362,15 @@ async function pushFeishuDaily(daily, req, target = 'prod') {
   const channelLabel = channel === 'test' ? '测试群' : '正式群';
   const dailyDate = daily.date || new Date().toISOString().slice(0, 10);
 
-  const response = await fetch(webhook, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FEISHU_PUSH_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
       msg_type: 'post',
       content: {
         post: {
@@ -365,8 +383,16 @@ async function pushFeishuDaily(daily, req, target = 'prod') {
           }
         }
       }
-    })
-  });
+      })
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw statusError(504, `Feishu ${channelLabel} push timed out. Please try again.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await response.text();
   if (!response.ok) {
