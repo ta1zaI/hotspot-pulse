@@ -57,23 +57,26 @@ async function fetchAjaxWeiboHot(region) {
       throw new Error('Weibo ajax hot-search source returned no rows.');
     }
 
-    return rows.slice(0, 50).map((item, index) => {
-      const title = item.word_scheme || item.word || item.note || `Weibo trend ${index + 1}`;
+    return rows
+      .filter((item) => Number(item.realpos) > 0)
+      .slice(0, 50)
+      .map((item, index) => {
+        const title = cleanWeiboTitle(item.note || item.word || item.word_scheme || `Weibo trend ${index + 1}`);
 
-      return createTrend({
-        platform: 'weibo',
-        title,
-        rank: Number(item.realpos || item.rank || index + 1),
-        heat: parseHeat(item.num || item.desc_extr || item.raw_hot),
-        url: item.url || weiboMobileSearchUrl(title),
-        region,
-        category: inferCategory(title),
-        tags: ['weibo', 'ajax-hot-search'],
-        summary: 'Weibo hot-search row collected from the public ajax JSON endpoint.',
-        sourceType: 'public-api',
-        sourceMessage: `Weibo public ajax hot-search source: ${endpoint}.`
+        return createTrend({
+          platform: 'weibo',
+          title,
+          rank: Number(item.realpos || item.rank || index + 1),
+          heat: parseHeat(item.num || item.desc_extr || item.raw_hot),
+          url: item.url || weiboMobileSearchUrl(title),
+          region,
+          category: inferCategory(title),
+          tags: ['weibo', 'ajax-hot-search'],
+          summary: 'Weibo hot-search row collected from the public ajax JSON endpoint.',
+          sourceType: 'public-api',
+          sourceMessage: `Weibo public ajax hot-search source: ${endpoint}.`
+        });
       });
-    });
   } catch {
     return [];
   }
@@ -256,6 +259,10 @@ function weiboMobileSearchUrl(title) {
   const query = String(title || '').replace(/^#|#$/g, '').trim();
   const containerId = `100103type=1&q=${query}`;
   return `https://m.weibo.cn/search?containerid=${encodeURIComponent(containerId)}`;
+}
+
+function cleanWeiboTitle(title) {
+  return String(title || '').replace(/^#+|#+$/g, '').trim();
 }
 
 function inferCategory(title) {
