@@ -1,11 +1,21 @@
 const { createTrend, fetchWithTimeout } = require('./shared');
 
 async function fetchWeiboTrends({ region = 'cn' } = {}) {
-  const source = (process.env.WEIBO_SOURCE || 'free-api').toLowerCase();
+  const source = (process.env.WEIBO_SOURCE || 'ajax-first').toLowerCase();
+
+  if (source === 'ajax' || source === 'ajax-first') {
+    const ajaxItems = await fetchAjaxWeiboHot(region);
+    if (ajaxItems.length) return ajaxItems;
+  }
 
   if (source === 'official' || source === 'official-first' || process.env.WEIBO_COOKIE) {
     const officialItems = await fetchOfficialWeiboPage(region);
     if (officialItems.length) return officialItems;
+  }
+
+  if (source === 'official-first') {
+    const ajaxItems = await fetchAjaxWeiboHot(region);
+    if (ajaxItems.length) return ajaxItems;
   }
 
   if (source !== 'official') {
@@ -17,6 +27,56 @@ async function fetchWeiboTrends({ region = 'cn' } = {}) {
     'Official Weibo source did not return rows. Add or refresh WEIBO_COOKIE, or use WEIBO_SOURCE=official-first for free-api fallback.',
     'sample-fallback'
   );
+}
+
+async function fetchAjaxWeiboHot(region) {
+  const endpoint = process.env.WEIBO_AJAX_URL || 'https://weibo.com/ajax/side/hotSearch';
+
+  try {
+    const response = await fetchWithTimeout(
+      endpoint,
+      {
+        headers: {
+          Accept: 'application/json,text/plain,*/*',
+          Referer: 'https://weibo.com/',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36'
+        }
+      },
+      15000
+    );
+
+    if (!response.ok) {
+      throw new Error(`Weibo ajax hot-search source failed with ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const rows = normalizeAjaxWeiboRows(payload);
+
+    if (!rows.length) {
+      throw new Error('Weibo ajax hot-search source returned no rows.');
+    }
+
+    return rows.slice(0, 50).map((item, index) => {
+      const title = item.word_scheme || item.word || item.note || `Weibo trend ${index + 1}`;
+
+      return createTrend({
+        platform: 'weibo',
+        title,
+        rank: Number(item.realpos || item.rank || index + 1),
+        heat: parseHeat(item.num || item.desc_extr || item.raw_hot),
+        url: item.url || weiboMobileSearchUrl(title),
+        region,
+        category: inferCategory(title),
+        tags: ['weibo', 'ajax-hot-search'],
+        summary: 'Weibo hot-search row collected from the public ajax JSON endpoint.',
+        sourceType: 'public-api',
+        sourceMessage: `Weibo public ajax hot-search source: ${endpoint}.`
+      });
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function fetchFreeWeiboHot(region) {
@@ -123,6 +183,14 @@ function normalizeFreeWeiboRows(payload) {
   if (Array.isArray(payload?.data?.list)) return payload.data.list;
   if (Array.isArray(payload?.list)) return payload.list;
   if (Array.isArray(payload?.result)) return payload.result;
+  return [];
+}
+
+function normalizeAjaxWeiboRows(payload) {
+  const realtime = payload?.data?.realtime;
+  if (Array.isArray(realtime)) return realtime;
+  if (Array.isArray(payload?.data?.band_list)) return payload.data.band_list;
+  if (Array.isArray(payload?.data)) return payload.data;
   return [];
 }
 
