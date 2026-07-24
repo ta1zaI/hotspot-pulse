@@ -1,6 +1,10 @@
 const { createTrend, fetchJsonWithPowerShell, fetchWithTimeout } = require('./shared');
 
 async function fetchRedditTrends({ region = 'global' } = {}) {
+  if (process.env.REDDIT_TRENDS_URL) {
+    return fetchCustomRedditSource(region);
+  }
+
   const subreddit = normalizeSubreddit(process.env.REDDIT_SUBREDDIT || 'popular');
   const sort = normalizeSort(process.env.REDDIT_SORT || 'hot');
   const limit = Math.min(50, Math.max(1, Number(process.env.REDDIT_LIMIT || 30)));
@@ -43,12 +47,60 @@ async function fetchRedditTrends({ region = 'global' } = {}) {
   }
 }
 
+async function fetchCustomRedditSource(region) {
+  const endpoint = process.env.REDDIT_TRENDS_URL;
+
+  try {
+    const headers = { Accept: 'application/json' };
+    if (process.env.REDDIT_TRENDS_BEARER_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.REDDIT_TRENDS_BEARER_TOKEN}`;
+    }
+    if (process.env.REDDIT_TRENDS_API_KEY) {
+      headers[process.env.REDDIT_TRENDS_API_KEY_HEADER || 'X-API-Key'] = process.env.REDDIT_TRENDS_API_KEY;
+    }
+
+    const response = await fetchWithTimeout(endpoint, { headers }, Number(process.env.REDDIT_DIRECT_TIMEOUT_MS || 6000));
+    if (!response.ok) {
+      throw new Error(`Reddit custom source failed with ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const rows = normalizeCustomRows(payload);
+    if (!rows.length) {
+      throw new Error('Reddit custom source returned no rows.');
+    }
+
+    return rows.slice(0, 50).map((item, index) => {
+      const title = item.title || item.name || item.text || `Reddit post ${index + 1}`;
+      const subredditName = item.subreddit || item.community || item.source || 'reddit';
+
+      return createTrend({
+        platform: 'reddit',
+        title,
+        rank: Number(item.rank || item.position || index + 1),
+        heat: Number(item.heat || item.score || item.ups || item.num_comments || 0) || null,
+        url: item.url || item.permalink || 'https://www.reddit.com/',
+        region: item.region || region,
+        category: item.category || inferCategory(`${title} ${subredditName}`),
+        tags: ['reddit', subredditName, 'custom-json'],
+        summary: item.summary || subredditName,
+        sourceType: 'custom-json',
+        sourceMessage: `Reddit connected through REDDIT_TRENDS_URL: ${endpoint}.`
+      });
+    });
+  } catch (error) {
+    return sampleRedditTrends(region, `Reddit custom fallback: ${formatFetchError(error)}`, 'sample-fallback');
+  }
+}
+
 async function fetchRedditPayload(endpoint, subreddit, sort) {
-  const source = String(process.env.REDDIT_SOURCE || 'proxy-first').toLowerCase();
+  const source = String(process.env.REDDIT_SOURCE || 'direct').toLowerCase();
   const candidates = source === 'direct'
     ? [directRedditSource(endpoint, subreddit, sort)]
     : source === 'proxy'
       ? codeTabsSources(endpoint, subreddit, sort)
+      : source === 'direct-first'
+        ? [directRedditSource(endpoint, subreddit, sort), ...codeTabsSources(endpoint, subreddit, sort)]
       : [...codeTabsSources(endpoint, subreddit, sort), directRedditSource(endpoint, subreddit, sort)];
   const errors = [];
 
@@ -79,7 +131,11 @@ function codeTabsSource(proxyUrl, subreddit, sort, label) {
     label: `CodeTabs ${label}`,
     async run() {
       return {
-        payload: await fetchJsonWithRetry(proxyUrl, 3, 30000),
+        payload: await fetchJsonWithRetry(
+          proxyUrl,
+          Number(process.env.REDDIT_PROXY_ATTEMPTS || 1),
+          Number(process.env.REDDIT_PROXY_TIMEOUT_MS || 8000)
+        ),
         sourceMessage: `Reddit public JSON feed via CodeTabs proxy: r/${subreddit}/${sort}.`
       };
     }
@@ -90,7 +146,7 @@ function directRedditSource(endpoint, subreddit, sort) {
   return {
     label: 'Reddit direct',
     async run() {
-      const response = await fetchRedditEndpoint(endpoint, 8000);
+      const response = await fetchRedditEndpoint(endpoint, Number(process.env.REDDIT_DIRECT_TIMEOUT_MS || 6000));
 
       if (!response.ok) {
         throw new Error(`Reddit request failed with ${response.status}`);
@@ -158,6 +214,16 @@ function normalizeRedditPosts(payload) {
   const children = payload?.data?.children;
   if (!Array.isArray(children)) return [];
   return children.map((child) => child?.data).filter(Boolean);
+}
+
+function normalizeCustomRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.posts)) return payload.posts;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.trends)) return payload.trends;
+  return [];
 }
 
 function normalizeSubreddit(value) {

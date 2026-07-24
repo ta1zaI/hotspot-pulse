@@ -92,7 +92,8 @@ if ($env:FETCH_HEADERS_JSON) {
   }
 }
 try {
-  $response = Invoke-WebRequest -UseBasicParsing -Uri $env:FETCH_URL -Headers $headers -TimeoutSec 20
+$timeoutSec = [Math]::Max(1, [Math]::Ceiling([int]$env:FETCH_TIMEOUT_MS / 1000))
+$response = Invoke-WebRequest -UseBasicParsing -Uri $env:FETCH_URL -Headers $headers -TimeoutSec $timeoutSec
   [PSCustomObject]@{
     status = [int]$response.StatusCode
     body = [string]$response.Content
@@ -125,6 +126,7 @@ try {
         env: {
           ...process.env,
           FETCH_URL: url,
+          FETCH_TIMEOUT_MS: String(timeoutMs),
           FETCH_HEADERS_JSON: JSON.stringify(headers)
         },
         maxBuffer: 10 * 1024 * 1024

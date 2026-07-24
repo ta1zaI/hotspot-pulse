@@ -16,7 +16,7 @@ async function fetchCreativeCenter(region) {
   const endpoint = `https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/en?countryCode=${encodeURIComponent(country)}&period=${encodeURIComponent(period)}`;
 
   try {
-    const response = await fetchTikTokPage(endpoint);
+    const response = await fetchTikTokPage(endpoint, Number(process.env.TIKTOK_TIMEOUT_MS || 8000));
 
     if (!response.ok) {
       throw new Error(`TikTok Creative Center failed with ${response.status}`);
@@ -52,7 +52,7 @@ async function fetchCreativeCenter(region) {
   }
 }
 
-async function fetchTikTokPage(endpoint) {
+async function fetchTikTokPage(endpoint, timeoutMs = 8000) {
   const headers = {
     Accept: 'text/html,application/xhtml+xml',
     'User-Agent':
@@ -60,7 +60,7 @@ async function fetchTikTokPage(endpoint) {
   };
 
   try {
-    return await fetchWithTimeout(endpoint, { headers }, 15000);
+    return await fetchWithTimeout(endpoint, { headers }, timeoutMs);
   } catch (error) {
     if (process.platform !== 'win32') {
       throw error;

@@ -30,6 +30,7 @@ const els = {
   sourceMode: document.querySelector('#sourceMode'),
   connectorStatusList: document.querySelector('#connectorStatusList'),
   sourceRefreshButton: document.querySelector('#sourceRefreshButton'),
+  sourceRefreshProgress: document.querySelector('#sourceRefreshProgress'),
   sourceRefreshStatus: document.querySelector('#sourceRefreshStatus'),
   adminButton: document.querySelector('#adminButton'),
   dailyAdminPanel: document.querySelector('#dailyAdminPanel'),
@@ -57,6 +58,7 @@ const els = {
 
 let adminLoginResolver = null;
 let adminLoginPromise = null;
+let refreshPollTimer = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
@@ -397,11 +399,14 @@ async function clearManualLinks() {
 }
 
 async function manualRefreshSources() {
+  setSourceRefreshProgress(0);
   setSourceRefreshStatus('正在尝试拉取数据源...');
   setButtonBusy(els.sourceRefreshButton, true);
 
   try {
-    await loadTrends({ refresh: true, wait: true, throwOnError: true });
+    const response = await fetch('/api/refresh', { method: 'POST' });
+    if (!response.ok) throw new Error('刷新启动失败');
+    await pollRefreshStatus();
     setSourceRefreshStatus(`已完成：${formatTime(new Date().toISOString())}`);
   } catch (error) {
     setSourceRefreshStatus(error.message || '拉取失败，请稍后再试');
@@ -983,6 +988,49 @@ function setLoading(isLoading) {
 function setSourceRefreshStatus(message) {
   if (!els.sourceRefreshStatus) return;
   els.sourceRefreshStatus.textContent = message || '';
+}
+
+function setSourceRefreshProgress(percent) {
+  if (!els.sourceRefreshProgress) return;
+  const value = Math.max(0, Math.min(100, Math.round(percent || 0)));
+  const bar = els.sourceRefreshProgress.querySelector('span');
+  if (bar) bar.style.width = `${value}%`;
+  els.sourceRefreshProgress.setAttribute('aria-valuenow', String(value));
+}
+
+async function pollRefreshStatus() {
+  if (refreshPollTimer) {
+    clearTimeout(refreshPollTimer);
+    refreshPollTimer = null;
+  }
+
+  while (true) {
+    const response = await fetch('/api/refresh-status');
+    if (!response.ok) throw new Error('刷新进度读取失败');
+
+    const status = await response.json();
+    const percent = status.total ? (status.completed / status.total) * 100 : 8;
+    setSourceRefreshProgress(percent);
+
+    if (status.phase === 'completed') {
+      setSourceRefreshProgress(100);
+      setSourceRefreshStatus(`已完成：${formatTime(status.completedAt || new Date().toISOString())}`);
+      await loadTrends();
+      return;
+    }
+
+    if (status.phase === 'error') {
+      throw new Error(status.error || '刷新失败');
+    }
+
+    const label = status.current ? `，正在处理：${status.current}` : '';
+    setSourceRefreshStatus(`刷新中 ${status.completed || 0}/${status.total || '?'}${label}`);
+    await delay(1200);
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function setButtonBusy(button, isBusy) {

@@ -44,19 +44,64 @@ const CONNECTORS = [
   { ...PLATFORM_REGISTRY.tiktok, run: fetchTikTokTrends }
 ];
 
-async function collectTrends({ region = 'global' } = {}) {
+async function collectTrends({ region = 'global', onProgress = null } = {}) {
   const connectors = activeConnectors();
   const previousSnapshot = await readSnapshot();
   const sourceCache = await readSourceCache();
+  let completed = 0;
+
+  onProgress?.({
+    phase: 'running',
+    total: connectors.length,
+    completed,
+    current: '',
+    connectors: []
+  });
+
   const settled = await Promise.all(
     connectors.map(async (connector) => {
+      onProgress?.({
+        phase: 'running',
+        total: connectors.length,
+        completed,
+        current: connector.label
+      });
+
       try {
-        return {
+        const result = {
           status: 'fulfilled',
           connector,
           items: await connector.run({ region: connector.id === 'weibo' ? 'cn' : region })
         };
+        completed += 1;
+        onProgress?.({
+          phase: 'running',
+          total: connectors.length,
+          completed,
+          current: connector.label,
+          connector: {
+            id: connector.id,
+            label: connector.label,
+            status: 'live',
+            itemCount: result.items.length
+          }
+        });
+        return result;
       } catch (error) {
+        completed += 1;
+        onProgress?.({
+          phase: 'running',
+          total: connectors.length,
+          completed,
+          current: connector.label,
+          connector: {
+            id: connector.id,
+            label: connector.label,
+            status: 'error',
+            message: error.message || String(error)
+          }
+        });
+
         return {
           status: 'rejected',
           connector,

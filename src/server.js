@@ -29,6 +29,7 @@ const PUBLIC_DIR = path.join(process.cwd(), 'public');
 const ADMIN_COOKIE = 'hp_admin';
 const ADMIN_SESSION_HOURS = 12;
 let refreshPromise = null;
+let refreshState = emptyRefreshState();
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -37,6 +38,10 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/trends') {
       const snapshot = (await readSnapshot()) || (await refresh());
       return sendJson(res, 200, snapshot);
+    }
+
+    if (url.pathname === '/api/refresh-status') {
+      return sendJson(res, 200, refreshState);
     }
 
     if (url.pathname === '/api/refresh' && req.method === 'POST') {
@@ -202,11 +207,80 @@ const server = http.createServer(async (req, res) => {
 
 async function refresh() {
   if (!refreshPromise) {
-    refreshPromise = collectTrends().finally(() => {
-      refreshPromise = null;
+    updateRefreshState({
+      phase: 'starting',
+      startedAt: new Date().toISOString(),
+      completedAt: '',
+      total: 0,
+      completed: 0,
+      current: '',
+      connectors: [],
+      error: ''
     });
+
+    refreshPromise = collectTrends({ onProgress: updateRefreshState })
+      .then((snapshot) => {
+        updateRefreshState({
+          phase: 'completed',
+          completedAt: new Date().toISOString(),
+          total: snapshot.connectors?.length || refreshState.total,
+          completed: snapshot.connectors?.length || refreshState.completed,
+          current: '',
+          connectors: snapshot.connectors || refreshState.connectors,
+          error: ''
+        });
+        return snapshot;
+      })
+      .catch((error) => {
+        updateRefreshState({
+          phase: 'error',
+          completedAt: new Date().toISOString(),
+          current: '',
+          error: error.message || String(error)
+        });
+        throw error;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
   }
   return refreshPromise;
+}
+
+function emptyRefreshState() {
+  return {
+    phase: 'idle',
+    startedAt: '',
+    completedAt: '',
+    total: 0,
+    completed: 0,
+    current: '',
+    connectors: [],
+    error: ''
+  };
+}
+
+function updateRefreshState(update = {}) {
+  const connectors = Array.isArray(update.connectors)
+    ? update.connectors
+    : update.connector
+      ? mergeConnectorProgress(refreshState.connectors, update.connector)
+      : refreshState.connectors;
+
+  refreshState = {
+    ...refreshState,
+    ...update,
+    connectors
+  };
+  delete refreshState.connector;
+}
+
+function mergeConnectorProgress(connectors = [], connector) {
+  const next = [...connectors];
+  const index = next.findIndex((item) => item.id === connector.id);
+  if (index === -1) next.push(connector);
+  else next[index] = { ...next[index], ...connector };
+  return next;
 }
 
 function refreshInBackground() {
