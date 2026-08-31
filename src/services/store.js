@@ -127,6 +127,29 @@ async function readDailyHistory(date) {
   return readJsonFile(path.join(DAILY_HISTORY_DIR, `${safeDate}.json`), null);
 }
 
+async function readAllDailyHistory() {
+  if (storeAdapter) {
+    const history = await storeAdapter.readJson('daily-history', {});
+    return Object.values(history).filter(Boolean).sort(sortDailyDesc);
+  }
+
+  const { fs, path } = localModules();
+  const { DAILY_HISTORY_DIR } = localPaths();
+
+  try {
+    const files = await fs.readdir(DAILY_HISTORY_DIR);
+    const entries = await Promise.all(
+      files
+        .filter((file) => /^\d{4}-\d{2}-\d{2}\.json$/.test(file))
+        .map((file) => readJsonFile(path.join(DAILY_HISTORY_DIR, file), null))
+    );
+    return entries.filter(Boolean).sort(sortDailyDesc);
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
 async function listDailyHistory() {
   if (storeAdapter) {
     const history = await storeAdapter.readJson('daily-history', {});
@@ -213,6 +236,10 @@ function sortHistoryDesc(a, b) {
   return String(b.date).localeCompare(String(a.date));
 }
 
+function sortDailyDesc(a, b) {
+  return String(b?.date || '').localeCompare(String(a?.date || ''));
+}
+
 function pruneDailyHistoryObject(history, retentionDays) {
   const cutoff = retentionCutoffDate(retentionDays);
   for (const date of Object.keys(history)) {
@@ -238,6 +265,7 @@ module.exports = {
   writeDaily,
   writeDailyHistory,
   readDailyHistory,
+  readAllDailyHistory,
   listDailyHistory,
   pruneDailyHistory,
   readManualLinks,

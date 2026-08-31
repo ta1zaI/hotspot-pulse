@@ -747,6 +747,23 @@ select {
   color: #7e22ce;
 }
 
+.used-daily-pill {
+  background: #eef7f7;
+  color: #12707a;
+}
+
+.is-used-daily {
+  opacity: 0.58;
+}
+
+.is-used-daily .select-check {
+  cursor: not-allowed;
+}
+
+.is-used-daily .select-check span {
+  background: #eef4f4;
+}
+
 .score {
   justify-self: end;
   text-align: right;

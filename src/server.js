@@ -8,6 +8,7 @@ loadEnv();
 
 const { collectTrends } = require('./services/collector');
 const {
+  readAllDailyHistory,
   listDailyHistory,
   readDaily,
   readDailyHistory,
@@ -17,7 +18,7 @@ const {
   writeDaily,
   writeManualLinks
 } = require('./services/store');
-const { buildDaily, createManualLink } = require('./services/daily');
+const { buildDaily, buildUsedDailyIndex, createManualLink, serializeUsedDailyIndex } = require('./services/daily');
 const { parseManualLink } = require('./services/linkParser');
 
 const PORT = Number(process.env.PORT || 4173);
@@ -107,10 +108,12 @@ const server = http.createServer(async (req, res) => {
         const body = await readJsonBody(req);
         const snapshot = (await readSnapshot()) || (await refresh());
         const manualLinks = await readManualLinks();
+        const usedIndex = await getUsedDailyIndex();
         const daily = buildDaily({
           snapshot,
           manualLinks,
-          selectedIds: Array.isArray(body.selectedIds) ? body.selectedIds : []
+          selectedIds: Array.isArray(body.selectedIds) ? body.selectedIds : [],
+          usedIndex
         });
         await writeDaily(daily);
         return sendJson(res, 200, daily);
@@ -133,6 +136,11 @@ const server = http.createServer(async (req, res) => {
         retentionDays: DAILY_HISTORY_RETENTION_DAYS,
         entries: await listDailyHistory()
       });
+    }
+
+    if (url.pathname === '/api/daily-used') {
+      const usedIndex = await getUsedDailyIndex();
+      return sendJson(res, 200, serializeUsedDailyIndex(usedIndex));
     }
 
     if (url.pathname === '/api/daily/push' && req.method === 'POST') {
@@ -408,6 +416,14 @@ async function archiveDailySnapshot(daily) {
   const date = daily?.date || new Date().toISOString().slice(0, 10);
   await writeDailyHistory(daily, DAILY_HISTORY_RETENTION_DAYS);
   return { date };
+}
+
+async function getUsedDailyIndex() {
+  const today = new Date().toISOString().slice(0, 10);
+  const histories = await readAllDailyHistory();
+  const current = await readDaily();
+  const dailies = current?.date && current.date !== today ? [current, ...histories] : histories;
+  return buildUsedDailyIndex(dailies, { excludeDate: today });
 }
 
 function emptyDaily(date = new Date().toISOString().slice(0, 10)) {

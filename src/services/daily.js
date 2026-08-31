@@ -4,20 +4,24 @@ const { nowIso } = require('../connectors/shared');
 const SUMMARY_LIMIT = 82;
 const TITLE_LIMIT = 72;
 
-function buildDaily({ snapshot, manualLinks, selectedIds }) {
+function buildDaily({ snapshot, manualLinks, selectedIds, usedIndex }) {
   const selected = new Set(selectedIds || []);
+  const used = usedIndex || emptyUsedDailyIndex();
   const clusters = snapshot?.clusters || [];
   const sourceItems = snapshot?.items || [];
   const manualItems = manualLinks || [];
-  const selectedClusters = clusters.filter((cluster) => selected.has(cluster.id));
+  const selectedClusters = clusters.filter((cluster) => selected.has(cluster.id) && !isUsedDailyEntity(cluster, used));
   const clusterSourceIds = new Set(selectedClusters.flatMap((cluster) => (cluster.sources || []).map((source) => source.id)));
-  const selectedSources = sourceItems.filter((item) => selected.has(item.id) && !clusterSourceIds.has(item.id));
-  const selectedManuals = manualItems.filter((item) => selected.has(item.id));
+  const selectedSources = sourceItems.filter(
+    (item) => selected.has(item.id) && !clusterSourceIds.has(item.id) && !isUsedDailyEntity(item, used)
+  );
+  const selectedManuals = manualItems.filter((item) => selected.has(item.id) && !isUsedDailyEntity(item, used));
   const items = [
     ...selectedClusters.map(normalizeCluster),
     ...selectedSources.map(normalizeSourceItem),
     ...selectedManuals.map(normalizeManual)
   ];
+  const keptIds = items.map((item) => item.id);
 
   const sourceCount = new Set(items.map((item) => item.sourceLabel).filter(Boolean)).size;
 
@@ -25,13 +29,82 @@ function buildDaily({ snapshot, manualLinks, selectedIds }) {
     id: `daily:${new Date().toISOString().slice(0, 10)}`,
     date: new Date().toISOString().slice(0, 10),
     updatedAt: nowIso(),
-    selectedIds: [...selected],
+    selectedIds: keptIds,
     itemCount: items.length,
     manualCount: selectedManuals.length,
     platformCount: sourceCount,
     items,
     sections: buildSections(items),
     summary: buildSummary(items, selectedManuals.length, sourceCount)
+  };
+}
+
+function buildUsedDailyIndex(dailies, { excludeDate = new Date().toISOString().slice(0, 10) } = {}) {
+  const index = emptyUsedDailyIndex();
+  for (const daily of dailies || []) {
+    if (!daily || daily.date === excludeDate) continue;
+    for (const item of daily.items || []) {
+      addUsedDailyItem(index, item, daily.date);
+    }
+  }
+  return index;
+}
+
+function emptyUsedDailyIndex() {
+  return {
+    urls: new Map(),
+    titles: new Map()
+  };
+}
+
+function addUsedDailyItem(index, item, date) {
+  const urlKey = urlFingerprint(item.url);
+  const titleKey = titleFingerprint(item.title);
+  const record = {
+    id: item.id || '',
+    title: item.title || '',
+    url: item.url || '',
+    date: date || '',
+    sourceLabel: item.sourceLabel || ''
+  };
+  if (urlKey && !index.urls.has(urlKey)) index.urls.set(urlKey, record);
+  if (titleKey && !index.titles.has(titleKey)) index.titles.set(titleKey, record);
+}
+
+function isUsedDailyEntity(entity, index) {
+  const match = usedDailyMatch(entity, index);
+  return Boolean(match);
+}
+
+function usedDailyMatch(entity, index) {
+  if (!entity || !index) return null;
+
+  for (const candidate of dailyFingerprintCandidates(entity)) {
+    const byUrl = urlFingerprint(candidate.url);
+    if (byUrl && index.urls.has(byUrl)) return index.urls.get(byUrl);
+
+    const byTitle = titleFingerprint(candidate.title);
+    if (byTitle && index.titles.has(byTitle)) return index.titles.get(byTitle);
+  }
+
+  return null;
+}
+
+function dailyFingerprintCandidates(entity) {
+  if (entity.sources) {
+    return [
+      { title: entity.canonicalTitle, url: '' },
+      ...(entity.sources || []).map((source) => ({ title: source.title, url: source.url }))
+    ];
+  }
+
+  return [{ title: entity.title, url: entity.url }];
+}
+
+function serializeUsedDailyIndex(index) {
+  return {
+    urls: Object.fromEntries(index.urls || []),
+    titles: Object.fromEntries(index.titles || [])
   };
 }
 
@@ -171,6 +244,32 @@ function cleanText(value, limit = SUMMARY_LIMIT) {
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 }
 
+function urlFingerprint(url) {
+  try {
+    const parsed = new URL(String(url || '').trim());
+    parsed.hash = '';
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^(utm_|spm|from|share|share_source|source|refer|ref|dt_dapp|jumpfrom)/i.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    }
+    parsed.hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function titleFingerprint(title) {
+  return String(title || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/^#+|#+$/g, '')
+    .replace(/[，。！？、,.!?;；:："'“”‘’()[\]【】{}《》\s#_-]+/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function looksMojibake(value) {
   return /[鐑鎵浠婃棩鏉ヨ嚜缁煎悎寰崥]|[�]/.test(String(value || ''));
 }
@@ -237,9 +336,12 @@ function hash(value) {
 }
 
 module.exports = {
+  buildUsedDailyIndex,
   buildDaily,
   categoryLabel,
   createManualLink,
   hostFromUrl,
-  platformLabel
+  platformLabel,
+  serializeUsedDailyIndex,
+  usedDailyMatch
 };

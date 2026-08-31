@@ -8,7 +8,8 @@ const state = {
   category: 'all',
   contentType: 'all',
   query: '',
-  selectedIds: new Set()
+  selectedIds: new Set(),
+  dailyUsed: { urls: {}, titles: {} }
 };
 
 const els = {
@@ -62,7 +63,7 @@ let refreshPollTimer = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
-  await Promise.all([loadSession(), loadDaily(), loadTrends()]);
+  await Promise.all([loadSession(), loadDaily(), loadDailyUsed(), loadTrends()]);
   if (state.authenticated) await loadManualLinks();
   refreshIcons();
   window.hpMotion?.pageEnter();
@@ -208,9 +209,16 @@ async function loadDaily() {
   renderDailyStatus();
 }
 
+async function loadDailyUsed() {
+  const response = await fetch('/api/daily-used');
+  state.dailyUsed = response.ok ? await response.json() : { urls: {}, titles: {} };
+  pruneUsedSelections();
+}
+
 async function loadManualLinks() {
   const response = await adminFetch('/api/manual-links');
   state.manualLinks = await response.json();
+  pruneUsedSelections();
   renderManualLinks();
   renderBasket();
 }
@@ -228,6 +236,7 @@ async function loadTrends({ refresh = false, wait = false, throwOnError = false 
     }
 
     state.snapshot = await response.json();
+    pruneUsedSelections();
     renderPlatformTabs();
     hydrateCategories();
     render();
@@ -442,7 +451,9 @@ async function saveDaily() {
     });
     state.daily = await response.json();
     state.selectedIds = new Set(state.daily.selectedIds || []);
+    await loadDailyUsed();
     syncCheckboxes();
+    render();
     renderBasket();
     renderDailyStatus('当前日报已保存。');
   } catch (error) {
@@ -485,6 +496,12 @@ async function pushDaily(target) {
 }
 
 function toggleSelection(id, checked) {
+  const used = usedMatchById(id);
+  if (checked && used) {
+    renderDailyStatus(`这条热点已在 ${used.date || '历史日报'} 发布过，已帮你挡住重复选择。`);
+    syncCheckboxes();
+    return;
+  }
   if (checked) state.selectedIds.add(id);
   else state.selectedIds.delete(id);
   renderBasket();
@@ -518,7 +535,12 @@ function clearSelection() {
 function syncCheckboxes() {
   document.querySelectorAll('input[data-select-id]').forEach((input) => {
     input.checked = state.selectedIds.has(input.dataset.selectId);
+    input.disabled = Boolean(usedMatchById(input.dataset.selectId));
   });
+}
+
+function pruneUsedSelections() {
+  state.selectedIds = new Set([...state.selectedIds].filter((id) => !usedMatchById(id)));
 }
 
 function hydrateCategories() {
@@ -710,14 +732,16 @@ function renderClusters(clusters) {
       const primarySource = cluster.sources.find((source) => source.url) || cluster.sources[0] || {};
       const primaryUrl = primarySource.url || '';
       const checked = state.selectedIds.has(cluster.id) ? 'checked' : '';
+      const used = usedDailyMatch(cluster);
+      const disabled = used ? 'disabled' : '';
       const titleHtml = primaryUrl
         ? `<a class="trend-title-link" href="${escapeHtml(primaryUrl)}" target="_blank" rel="noreferrer">${escapeHtml(cluster.canonicalTitle)}</a>`
         : `<span>${escapeHtml(cluster.canonicalTitle)}</span>`;
 
       return `
-        <article class="trend-card">
-          <label class="select-check" title="加入当前日报">
-            <input type="checkbox" data-select-id="${escapeHtml(cluster.id)}" ${checked} />
+        <article class="trend-card ${used ? 'is-used-daily' : ''}">
+          <label class="select-check" title="${used ? `已在 ${used.date || '历史日报'} 发布过` : '加入当前日报'}">
+            <input type="checkbox" data-select-id="${escapeHtml(cluster.id)}" ${checked} ${disabled} />
             <span></span>
           </label>
           <div class="rank">${index + 1}</div>
@@ -728,6 +752,7 @@ function renderClusters(clusters) {
             <div class="trend-meta">
               <span class="pill">${categoryLabel(cluster.category)}</span>
               ${platforms}
+              ${used ? `<span class="pill used-daily-pill">已发布 ${escapeHtml(used.date || '')}</span>` : ''}
             </div>
           </div>
           <div class="score">
@@ -754,10 +779,12 @@ function renderSources() {
 
   els.sourceList.innerHTML = items
     .map(
-      (item) => `
-        <article class="source-item">
-          <label class="select-check" title="加入当前日报">
-            <input type="checkbox" data-select-id="${escapeHtml(item.id)}" ${state.selectedIds.has(item.id) ? 'checked' : ''} />
+      (item) => {
+        const used = usedDailyMatch(item);
+        return `
+        <article class="source-item ${used ? 'is-used-daily' : ''}">
+          <label class="select-check" title="${used ? `已在 ${used.date || '历史日报'} 发布过` : '加入当前日报'}">
+            <input type="checkbox" data-select-id="${escapeHtml(item.id)}" ${state.selectedIds.has(item.id) ? 'checked' : ''} ${used ? 'disabled' : ''} />
             <span></span>
           </label>
           <div class="source-row">
@@ -769,12 +796,14 @@ function renderSources() {
               <div class="trend-meta">
                 <span class="pill">${categoryLabel(item.category)}</span>
                 <span class="pill">${sourceTypeLabel(item.sourceType)}</span>
+                ${used ? `<span class="pill used-daily-pill">已发布 ${escapeHtml(used.date || '')}</span>` : ''}
               </div>
             </div>
             <div class="source-rank">${item.rank}</div>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join('');
 }
@@ -816,10 +845,11 @@ function renderManualLinks() {
   els.manualList.innerHTML = state.manualLinks
     .map((item) => {
       const checked = state.selectedIds.has(item.id) ? 'checked' : '';
+      const used = usedDailyMatch(item);
       return `
-        <article class="manual-item ${item.image ? '' : 'manual-item-no-image'}">
-          <label class="select-check" title="加入当前日报">
-            <input type="checkbox" data-select-id="${escapeHtml(item.id)}" ${checked} />
+        <article class="manual-item ${item.image ? '' : 'manual-item-no-image'} ${used ? 'is-used-daily' : ''}">
+          <label class="select-check" title="${used ? `已在 ${used.date || '历史日报'} 发布过` : '加入当前日报'}">
+            <input type="checkbox" data-select-id="${escapeHtml(item.id)}" ${checked} ${used ? 'disabled' : ''} />
             <span></span>
           </label>
           ${item.image ? `<div class="manual-item-image"><img src="${escapeHtml(item.image)}" alt="" /><button class="ghost-button" data-clear-saved-manual-image="${escapeHtml(item.id)}" type="button"><i data-lucide="image-off"></i> 删除图片</button></div>` : ''}
@@ -829,6 +859,7 @@ function renderManualLinks() {
             <div class="trend-meta">
               <span class="pill">${escapeHtml(item.sourceLabel || '手动添加')}</span>
               <span class="pill">${categoryLabel(item.category)}</span>
+              ${used ? `<span class="pill used-daily-pill">已发布 ${escapeHtml(used.date || '')}</span>` : ''}
             </div>
           </div>
         </article>
@@ -903,7 +934,63 @@ function selectedItems() {
 }
 
 function selectedItemIds() {
-  return selectedItems().map((item) => item.id);
+  return selectedItems().filter((item) => !usedMatchById(item.id)).map((item) => item.id);
+}
+
+function usedMatchById(id) {
+  const cluster = (state.snapshot?.clusters || []).find((item) => item.id === id);
+  if (cluster) return usedDailyMatch(cluster);
+  const source = (state.snapshot?.items || []).find((item) => item.id === id);
+  if (source) return usedDailyMatch(source);
+  const manual = state.manualLinks.find((item) => item.id === id);
+  if (manual) return usedDailyMatch(manual);
+  return null;
+}
+
+function usedDailyMatch(entity) {
+  for (const candidate of dailyFingerprintCandidates(entity)) {
+    const urlKey = urlFingerprint(candidate.url);
+    if (urlKey && state.dailyUsed.urls?.[urlKey]) return state.dailyUsed.urls[urlKey];
+    const titleKey = titleFingerprint(candidate.title);
+    if (titleKey && state.dailyUsed.titles?.[titleKey]) return state.dailyUsed.titles[titleKey];
+  }
+  return null;
+}
+
+function dailyFingerprintCandidates(entity) {
+  if (entity?.sources) {
+    return [
+      { title: entity.canonicalTitle, url: '' },
+      ...(entity.sources || []).map((source) => ({ title: source.title, url: source.url }))
+    ];
+  }
+  return [{ title: entity?.title, url: entity?.url }];
+}
+
+function urlFingerprint(url) {
+  try {
+    const parsed = new URL(String(url || '').trim());
+    parsed.hash = '';
+    [...parsed.searchParams.keys()].forEach((key) => {
+      if (/^(utm_|spm|from|share|share_source|source|refer|ref|dt_dapp|jumpfrom)/i.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    });
+    parsed.hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function titleFingerprint(title) {
+  return String(title || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/^#+|#+$/g, '')
+    .replace(/[，。！？、,.!?;；:："'“”‘’()[\]【】{}《》\s#_-]+/g, '')
+    .toLowerCase()
+    .trim();
 }
 
 function basketCluster(cluster) {
