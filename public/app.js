@@ -9,6 +9,7 @@ const state = {
   contentType: 'all',
   query: '',
   selectedIds: new Set(),
+  lockedPickIds: new Set(),
   autoPickIds: new Set(),
   autoPickSeenIds: new Set(),
   dailyUsed: { urls: {}, titles: {} }
@@ -209,6 +210,9 @@ async function loadDaily() {
   const response = await fetch('/api/daily');
   state.daily = await response.json();
   state.selectedIds = new Set(state.daily.selectedIds || []);
+  state.lockedPickIds = new Set(state.daily.selectedIds || []);
+  state.autoPickIds.clear();
+  state.autoPickSeenIds.clear();
   renderBasket();
   renderDailyStatus();
 }
@@ -455,6 +459,9 @@ async function saveDaily() {
     });
     state.daily = await response.json();
     state.selectedIds = new Set(state.daily.selectedIds || []);
+    state.lockedPickIds = new Set(state.daily.selectedIds || []);
+    state.autoPickIds.clear();
+    state.autoPickSeenIds.clear();
     await loadDailyUsed();
     syncCheckboxes();
     render();
@@ -508,6 +515,7 @@ function toggleSelection(id, checked) {
   }
   if (checked) state.selectedIds.add(id);
   else state.selectedIds.delete(id);
+  state.lockedPickIds.delete(id);
   state.autoPickIds.delete(id);
   renderBasket();
   renderDailyStatus();
@@ -524,6 +532,7 @@ async function handleSelectionChange(input) {
 
 function removeSelection(id) {
   state.selectedIds.delete(id);
+  state.lockedPickIds.delete(id);
   state.autoPickIds.delete(id);
   syncCheckboxes();
   renderBasket();
@@ -533,6 +542,7 @@ function removeSelection(id) {
 function clearSelection() {
   if (!state.selectedIds.size) return;
   state.selectedIds.clear();
+  state.lockedPickIds.clear();
   state.autoPickIds.clear();
   state.autoPickSeenIds.clear();
   syncCheckboxes();
@@ -545,7 +555,9 @@ async function autoPickDaily() {
   const replacing = state.autoPickIds.size > 0;
   const previousAutoPickIds = new Set(state.autoPickIds);
   if (replacing) {
-    state.autoPickIds.forEach((id) => state.selectedIds.delete(id));
+    state.autoPickIds.forEach((id) => {
+      if (!state.lockedPickIds.has(id)) state.selectedIds.delete(id);
+    });
   }
 
   const keptIds = selectedItemIds();
@@ -562,7 +574,7 @@ async function autoPickDaily() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         selectedIds: keptIds,
-        excludeIds: [...state.autoPickSeenIds],
+        excludeIds: [...state.autoPickSeenIds, ...state.lockedPickIds],
         targetCount
       })
     });
@@ -576,7 +588,7 @@ async function autoPickDaily() {
       renderDailyStatus('暂时没有下一组可换的未发布热点，已保留当前这组。');
       return;
     }
-    state.autoPickIds = new Set(nextIds);
+    state.autoPickIds = new Set(nextIds.filter((id) => !state.lockedPickIds.has(id)));
     nextIds.forEach((id) => {
       state.selectedIds.add(id);
       state.autoPickSeenIds.add(id);
@@ -584,9 +596,10 @@ async function autoPickDaily() {
     pruneUsedSelections();
     syncCheckboxes();
     renderBasket();
+    const lockedCount = state.lockedPickIds.size;
     renderDailyStatus(
       replacing
-        ? (nextIds.length ? `已换一组，重新加入 ${nextIds.length} 条热点。` : '暂时没有下一组可换的未发布热点。')
+        ? (nextIds.length ? `已换未保存的 ${nextIds.length} 条；已保存确认的 ${lockedCount} 条保持不动。` : '暂时没有下一组可换的未发布热点。')
         : (result.message || `已补入 ${result.addedCount || 0} 条热点。`)
     );
   } catch (error) {
@@ -605,6 +618,7 @@ function syncCheckboxes() {
 
 function pruneUsedSelections() {
   state.selectedIds = new Set([...state.selectedIds].filter((id) => !usedMatchById(id)));
+  state.lockedPickIds = new Set([...state.lockedPickIds].filter((id) => state.selectedIds.has(id)));
   state.autoPickIds = new Set([...state.autoPickIds].filter((id) => state.selectedIds.has(id)));
 }
 
