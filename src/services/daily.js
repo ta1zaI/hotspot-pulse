@@ -108,6 +108,131 @@ function serializeUsedDailyIndex(index) {
   };
 }
 
+function suggestDailyPickIds({ snapshot, selectedIds, usedIndex, dailies, limit = 10 }) {
+  const selected = new Set(selectedIds || []);
+  const used = usedIndex || emptyUsedDailyIndex();
+  const selectedIndex = buildSelectedEntityIndex(snapshot, selected);
+  const habits = buildDailyHabits(dailies || []);
+  const candidates = [
+    ...(snapshot?.clusters || []).map((cluster, index) => ({
+      id: cluster.id,
+      kind: 'cluster',
+      rank: index + 1,
+      score: Number(cluster.score) || 0,
+      category: cluster.category,
+      platforms: cluster.platforms || [],
+      sampleOnly: (cluster.sources || []).length > 0 && (cluster.sources || []).every(isSampleLikeSource),
+      entity: cluster
+    })),
+    ...(snapshot?.items || []).map((item) => ({
+      id: item.id,
+      kind: 'source',
+      rank: Number(item.rank) || 999,
+      score: Number(item.heat) || 0,
+      category: item.category,
+      platforms: [item.platform].filter(Boolean),
+      sampleOnly: isSampleLikeSource(item),
+      entity: item
+    }))
+  ];
+
+  const unique = new Map();
+  for (const candidate of candidates) {
+    if (
+      !candidate.id ||
+      selected.has(candidate.id) ||
+      candidate.sampleOnly ||
+      isUsedDailyEntity(candidate.entity, used) ||
+      isUsedDailyEntity(candidate.entity, selectedIndex)
+    ) continue;
+    const duplicateKey = bestCandidateFingerprint(candidate.entity);
+    if (duplicateKey && unique.has(duplicateKey)) {
+      const existing = unique.get(duplicateKey);
+      if (scoreSuggestion(candidate, habits) > scoreSuggestion(existing, habits)) {
+        unique.set(duplicateKey, candidate);
+      }
+      continue;
+    }
+    unique.set(duplicateKey || candidate.id, candidate);
+  }
+
+  return [...unique.values()]
+    .sort((a, b) => scoreSuggestion(b, habits) - scoreSuggestion(a, habits))
+    .slice(0, Math.max(0, Number(limit) || 10))
+    .map((candidate) => candidate.id);
+}
+
+function buildSelectedEntityIndex(snapshot, selected) {
+  const index = emptyUsedDailyIndex();
+  const entities = [
+    ...(snapshot?.clusters || []),
+    ...(snapshot?.items || [])
+  ];
+  for (const entity of entities) {
+    if (!selected.has(entity.id)) continue;
+    for (const candidate of dailyFingerprintCandidates(entity)) {
+      const item = { id: entity.id, title: candidate.title, url: candidate.url };
+      addUsedDailyItem(index, item, '');
+    }
+  }
+  return index;
+}
+
+function buildDailyHabits(dailies) {
+  const categoryCounts = new Map();
+  const platformCounts = new Map();
+  const kindCounts = new Map();
+  let total = 0;
+
+  for (const daily of dailies || []) {
+    for (const item of daily?.items || []) {
+      total += 1;
+      increment(categoryCounts, item.category || 'general', 1);
+      increment(kindCounts, item.kind || 'source', 1);
+      for (const label of sourceLabelParts(item.sourceLabel)) {
+        increment(platformCounts, label, 1);
+      }
+    }
+  }
+
+  return { categoryCounts, platformCounts, kindCounts, total };
+}
+
+function scoreSuggestion(candidate, habits) {
+  const rankScore = Math.max(0, 120 - Math.log2(Math.max(1, candidate.rank) + 1) * 18);
+  const heatScore = Math.min(80, Math.log10(Math.max(0, candidate.score) + 1) * 8);
+  const categoryScore = (habits.categoryCounts.get(candidate.category || 'general') || 0) * 5;
+  const platformScore = candidate.platforms
+    .map((platform) => habits.platformCounts.get(platformLabel(platform)) || habits.platformCounts.get(platform) || 0)
+    .reduce((sum, count) => sum + count, 0) * 4;
+  const kindScore = (habits.kindCounts.get(candidate.kind) || 0) * 2;
+  const clusterBonus = candidate.kind === 'cluster' ? 14 : 0;
+  return rankScore + heatScore + categoryScore + platformScore + kindScore + clusterBonus;
+}
+
+function bestCandidateFingerprint(entity) {
+  for (const candidate of dailyFingerprintCandidates(entity)) {
+    return titleFingerprint(candidate.title) || urlFingerprint(candidate.url);
+  }
+  return '';
+}
+
+function sourceLabelParts(label) {
+  return String(label || '')
+    .split(/\s*\/\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function isSampleLikeSource(item) {
+  return ['sample', 'sample-fallback'].includes(item?.sourceType);
+}
+
+function increment(map, key, amount) {
+  if (!key) return;
+  map.set(key, (map.get(key) || 0) + amount);
+}
+
 function normalizeCluster(cluster) {
   const primarySource = cluster.sources?.find((source) => source.url) || cluster.sources?.[0] || {};
   const title = readableTitle(cluster.canonicalTitle || primarySource.title, primarySource.url);
@@ -342,6 +467,7 @@ module.exports = {
   createManualLink,
   hostFromUrl,
   platformLabel,
+  suggestDailyPickIds,
   serializeUsedDailyIndex,
   usedDailyMatch
 };

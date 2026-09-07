@@ -18,7 +18,13 @@ const {
   writeDaily,
   writeManualLinks
 } = require('./services/store');
-const { buildDaily, buildUsedDailyIndex, createManualLink, serializeUsedDailyIndex } = require('./services/daily');
+const {
+  buildDaily,
+  buildUsedDailyIndex,
+  createManualLink,
+  serializeUsedDailyIndex,
+  suggestDailyPickIds
+} = require('./services/daily');
 const { parseManualLink } = require('./services/linkParser');
 
 const PORT = Number(process.env.PORT || 4173);
@@ -141,6 +147,34 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/daily-used') {
       const usedIndex = await getUsedDailyIndex();
       return sendJson(res, 200, serializeUsedDailyIndex(usedIndex));
+    }
+
+    if (url.pathname === '/api/daily/suggestions' && req.method === 'POST') {
+      requireAdmin(req);
+      const body = await readJsonBody(req);
+      const snapshot = (await readSnapshot()) || (await refresh());
+      const usedIndex = await getUsedDailyIndex();
+      const historyDailies = await getHabitDailies();
+      const selectedIds = Array.isArray(body.selectedIds) ? body.selectedIds : [];
+      const targetCount = Math.max(1, Math.min(20, Number(body.targetCount) || 10));
+      const limit = Math.max(0, targetCount - selectedIds.length);
+      const ids = suggestDailyPickIds({
+        snapshot,
+        selectedIds,
+        usedIndex,
+        dailies: historyDailies,
+        limit
+      });
+
+      return sendJson(res, 200, {
+        ids,
+        targetCount,
+        addedCount: ids.length,
+        selectedCount: selectedIds.length,
+        message: ids.length
+          ? `已按历史选择习惯补入 ${ids.length} 条热点。`
+          : '没有找到可补入的未发布热点。'
+      });
     }
 
     if (url.pathname === '/api/daily/push' && req.method === 'POST') {
@@ -424,6 +458,12 @@ async function getUsedDailyIndex() {
   const current = await readDaily();
   const dailies = current?.date && current.date !== today ? [current, ...histories] : histories;
   return buildUsedDailyIndex(dailies, { excludeDate: today });
+}
+
+async function getHabitDailies() {
+  const histories = await readAllDailyHistory();
+  const current = await readDaily();
+  return current?.items?.length ? [current, ...histories] : histories;
 }
 
 function emptyDaily(date = new Date().toISOString().slice(0, 10)) {

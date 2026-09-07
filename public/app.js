@@ -41,6 +41,7 @@ const els = {
   pushTestDailyButton: document.querySelector('#pushTestDailyButton'),
   pushProdDailyButton: document.querySelector('#pushProdDailyButton'),
   clearSelectionButton: document.querySelector('#clearSelectionButton'),
+  autoPickDailyButton: document.querySelector('#autoPickDailyButton'),
   basketCount: document.querySelector('#basketCount'),
   basketList: document.querySelector('#basketList'),
   manualInput: document.querySelector('#manualInput'),
@@ -139,6 +140,7 @@ function bindEvents() {
   els.pushTestDailyButton.addEventListener('click', () => pushDaily('test'));
   els.pushProdDailyButton.addEventListener('click', () => pushDaily('prod'));
   els.clearSelectionButton.addEventListener('click', clearSelection);
+  els.autoPickDailyButton.addEventListener('click', autoPickDaily);
   els.parseManualButton.addEventListener('click', parseManualLink);
   els.clearManualButton.addEventListener('click', clearManualLinks);
   els.adminLoginForm.addEventListener('submit', submitAdminLogin);
@@ -530,6 +532,37 @@ function clearSelection() {
   syncCheckboxes();
   renderBasket();
   renderDailyStatus('已清空当前选择。已保存日报和手动热点池不受影响。');
+}
+
+async function autoPickDaily() {
+  const targetCount = 10;
+  const currentCount = selectedItemIds().length;
+  if (currentCount >= targetCount) {
+    renderDailyStatus(`日报篮子已经有 ${currentCount} 条，不需要继续补。`);
+    return;
+  }
+
+  try {
+    setButtonBusy(els.autoPickDailyButton, true);
+    const response = await adminFetch('/api/daily/suggestions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selectedIds: selectedItemIds(),
+        targetCount
+      })
+    });
+    const result = await response.json();
+    (result.ids || []).forEach((id) => state.selectedIds.add(id));
+    pruneUsedSelections();
+    syncCheckboxes();
+    renderBasket();
+    renderDailyStatus(result.message || `已补入 ${result.addedCount || 0} 条热点。`);
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    setButtonBusy(els.autoPickDailyButton, false);
+  }
 }
 
 function syncCheckboxes() {
