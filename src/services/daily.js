@@ -108,8 +108,9 @@ function serializeUsedDailyIndex(index) {
   };
 }
 
-function suggestDailyPickIds({ snapshot, selectedIds, usedIndex, dailies, limit = 10 }) {
+function suggestDailyPickIds({ snapshot, selectedIds, excludeIds, usedIndex, dailies, limit = 10 }) {
   const selected = new Set(selectedIds || []);
+  const excluded = new Set(excludeIds || []);
   const used = usedIndex || emptyUsedDailyIndex();
   const selectedIndex = buildSelectedEntityIndex(snapshot, selected);
   const habits = buildDailyHabits(dailies || []);
@@ -141,6 +142,7 @@ function suggestDailyPickIds({ snapshot, selectedIds, usedIndex, dailies, limit 
     if (
       !candidate.id ||
       selected.has(candidate.id) ||
+      excluded.has(candidate.id) ||
       candidate.sampleOnly ||
       isUsedDailyEntity(candidate.entity, used) ||
       isUsedDailyEntity(candidate.entity, selectedIndex)

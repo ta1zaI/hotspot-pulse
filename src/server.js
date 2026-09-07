@@ -156,11 +156,13 @@ const server = http.createServer(async (req, res) => {
       const usedIndex = await getUsedDailyIndex();
       const historyDailies = await getHabitDailies();
       const selectedIds = Array.isArray(body.selectedIds) ? body.selectedIds : [];
+      const excludeIds = Array.isArray(body.excludeIds) ? body.excludeIds : [];
       const targetCount = Math.max(1, Math.min(20, Number(body.targetCount) || 10));
       const limit = Math.max(0, targetCount - selectedIds.length);
       const ids = suggestDailyPickIds({
         snapshot,
         selectedIds,
+        excludeIds,
         usedIndex,
         dailies: historyDailies,
         limit
@@ -172,7 +174,7 @@ const server = http.createServer(async (req, res) => {
         addedCount: ids.length,
         selectedCount: selectedIds.length,
         message: ids.length
-          ? `已按历史选择习惯补入 ${ids.length} 条热点。`
+          ? `已按历史选择习惯加入 ${ids.length} 条热点。`
           : '没有找到可补入的未发布热点。'
       });
     }

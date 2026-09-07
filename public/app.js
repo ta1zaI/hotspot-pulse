@@ -9,6 +9,8 @@ const state = {
   contentType: 'all',
   query: '',
   selectedIds: new Set(),
+  autoPickIds: new Set(),
+  autoPickSeenIds: new Set(),
   dailyUsed: { urls: {}, titles: {} }
 };
 
@@ -506,6 +508,7 @@ function toggleSelection(id, checked) {
   }
   if (checked) state.selectedIds.add(id);
   else state.selectedIds.delete(id);
+  state.autoPickIds.delete(id);
   renderBasket();
   renderDailyStatus();
 }
@@ -521,6 +524,7 @@ async function handleSelectionChange(input) {
 
 function removeSelection(id) {
   state.selectedIds.delete(id);
+  state.autoPickIds.delete(id);
   syncCheckboxes();
   renderBasket();
   renderDailyStatus();
@@ -529,6 +533,8 @@ function removeSelection(id) {
 function clearSelection() {
   if (!state.selectedIds.size) return;
   state.selectedIds.clear();
+  state.autoPickIds.clear();
+  state.autoPickSeenIds.clear();
   syncCheckboxes();
   renderBasket();
   renderDailyStatus('已清空当前选择。已保存日报和手动热点池不受影响。');
@@ -536,9 +542,16 @@ function clearSelection() {
 
 async function autoPickDaily() {
   const targetCount = 10;
-  const currentCount = selectedItemIds().length;
-  if (currentCount >= targetCount) {
-    renderDailyStatus(`日报篮子已经有 ${currentCount} 条，不需要继续补。`);
+  const replacing = state.autoPickIds.size > 0;
+  const previousAutoPickIds = new Set(state.autoPickIds);
+  if (replacing) {
+    state.autoPickIds.forEach((id) => state.selectedIds.delete(id));
+  }
+
+  const keptIds = selectedItemIds();
+  const currentCount = keptIds.length;
+  if (!replacing && currentCount >= targetCount) {
+    renderDailyStatus(`日报篮子已经有 ${currentCount} 条；再点会只替换自动推荐的一组。`);
     return;
   }
 
@@ -548,16 +561,34 @@ async function autoPickDaily() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        selectedIds: selectedItemIds(),
+        selectedIds: keptIds,
+        excludeIds: [...state.autoPickSeenIds],
         targetCount
       })
     });
     const result = await response.json();
-    (result.ids || []).forEach((id) => state.selectedIds.add(id));
+    const nextIds = result.ids || [];
+    if (replacing && !nextIds.length) {
+      previousAutoPickIds.forEach((id) => state.selectedIds.add(id));
+      state.autoPickIds = previousAutoPickIds;
+      syncCheckboxes();
+      renderBasket();
+      renderDailyStatus('暂时没有下一组可换的未发布热点，已保留当前这组。');
+      return;
+    }
+    state.autoPickIds = new Set(nextIds);
+    nextIds.forEach((id) => {
+      state.selectedIds.add(id);
+      state.autoPickSeenIds.add(id);
+    });
     pruneUsedSelections();
     syncCheckboxes();
     renderBasket();
-    renderDailyStatus(result.message || `已补入 ${result.addedCount || 0} 条热点。`);
+    renderDailyStatus(
+      replacing
+        ? (nextIds.length ? `已换一组，重新加入 ${nextIds.length} 条热点。` : '暂时没有下一组可换的未发布热点。')
+        : (result.message || `已补入 ${result.addedCount || 0} 条热点。`)
+    );
   } catch (error) {
     alert(error.message);
   } finally {
@@ -574,6 +605,7 @@ function syncCheckboxes() {
 
 function pruneUsedSelections() {
   state.selectedIds = new Set([...state.selectedIds].filter((id) => !usedMatchById(id)));
+  state.autoPickIds = new Set([...state.autoPickIds].filter((id) => state.selectedIds.has(id)));
 }
 
 function hydrateCategories() {
