@@ -975,44 +975,45 @@ body:not(.is-admin) .trend-card {
 }
 
 .daily-basket {
-  grid-template-rows: auto minmax(168px, 168px);
+  grid-template-rows: auto minmax(0, auto);
 }
 
 .basket-list {
   display: grid;
   align-content: start;
   gap: 10px;
-  height: 168px;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-  scrollbar-gutter: stable;
 }
 
 .basket-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 12px 12px 12px 14px;
+  min-height: 58px;
+  padding: 9px 10px 9px 12px;
   border: 1px solid rgba(29, 37, 40, 0.08);
   border-radius: 8px;
   background: #fff;
 }
 
 .basket-item h4 {
-  margin: 0 0 8px;
+  display: -webkit-box;
+  margin: 0 0 6px;
   overflow-wrap: anywhere;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .basket-list .empty-state {
-  min-height: 100%;
+  min-height: 120px;
 }
 
 .basket-remove {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   box-shadow: none;
 }
 
