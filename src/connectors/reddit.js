@@ -1,4 +1,6 @@
 const { createTrend, fetchJsonWithPowerShell, fetchWithTimeout } = require('./shared');
+const { requestText } = require('./request');
+const { XMLParser, XMLValidator } = require('fast-xml-parser');
 
 async function fetchRedditTrends({ region = 'global' } = {}) {
   if (process.env.REDDIT_TRENDS_URL) {
@@ -9,6 +11,10 @@ async function fetchRedditTrends({ region = 'global' } = {}) {
   const sort = normalizeSort(process.env.REDDIT_SORT || 'hot');
   const limit = Math.min(50, Math.max(1, Number(process.env.REDDIT_LIMIT || 30)));
   const endpoint = `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/${sort}.json?limit=${limit}&raw_json=1`;
+
+  if (!process.env.REDDIT_SOURCE || process.env.REDDIT_SOURCE === 'rss') {
+    return fetchRedditRss({ region, subreddit, sort, limit });
+  }
 
   try {
     const { payload, sourceMessage } = await fetchRedditPayload(endpoint, subreddit, sort);
@@ -43,8 +49,49 @@ async function fetchRedditTrends({ region = 'global' } = {}) {
       });
     });
   } catch (error) {
-    return sampleRedditTrends(region, `Reddit fallback: ${formatFetchError(error)}`, 'sample-fallback');
+    return fetchRedditRss({ region, subreddit, sort, limit });
   }
+}
+
+async function fetchRedditRss({ region, subreddit, sort, limit }) {
+  const feeds = [{ subreddit, sort, period: 'day' }];
+  if (subreddit === 'popular') feeds.push({ subreddit: 'all', sort: 'top', period: 'day' });
+  const errors = [];
+  for (const feed of feeds) {
+    const url = `https://www.reddit.com/r/${encodeURIComponent(feed.subreddit)}/${feed.sort}.rss?t=${feed.period}&limit=${limit}`;
+    try {
+      const xml = await requestText(url, { headers: { 'User-Agent': 'HotspotPulse/0.1' } });
+      return parseRedditRss(xml, { region, limit, feed });
+    } catch (error) { errors.push(`${feed.subreddit}/${feed.sort}: ${error.message}`); }
+  }
+  throw new Error(`Reddit RSS unavailable: ${errors.join('; ')}`);
+}
+
+function parseRedditRss(xml, { region = 'global', limit = 30, feed = { subreddit: 'all', sort: 'top', period: 'day' } } = {}) {
+  if (XMLValidator.validate(xml) !== true) throw new Error('Reddit returned invalid RSS.');
+  const payload = new XMLParser({ ignoreAttributes: false, parseTagValue: false }).parse(xml);
+  const entries = payload.feed?.entry;
+  const rows = Array.isArray(entries) ? entries : entries ? [entries] : [];
+  const seen = new Set();
+  const items = rows.flatMap((entry) => {
+    const title = typeof entry.title === 'string' ? entry.title : entry.title?.['#text'];
+    const links = Array.isArray(entry.link) ? entry.link : [entry.link];
+    const link = links.find((link) => link?.['@_href'] && (!link['@_rel'] || link['@_rel'] === 'alternate'))?.['@_href'];
+    let url;
+    try { url = new URL(link); } catch { return []; }
+    if (!title || url.protocol !== 'https:' || !['www.reddit.com', 'reddit.com', 'old.reddit.com'].includes(url.hostname) || !url.pathname.includes('/comments/') || seen.has(url.href)) return [];
+    seen.add(url.href);
+    const community = entry.category?.['@_label'] || `r/${feed.subreddit}`;
+    return [createTrend({
+      platform: 'reddit', title, rank: seen.size, heat: null, url: url.href, region,
+      category: inferCategory(`${title} ${community}`), tags: ['reddit', community, feed.sort, 'rss'],
+      summary: `${community} · ${feed.sort}${feed.sort === 'top' ? ` / ${feed.period}` : ''}`,
+      sourceType: 'rss',
+      sourceMessage: `Reddit public RSS: r/${feed.subreddit}/${feed.sort}${feed.sort === 'top' ? ` (${feed.period})` : ''}; ordered as published, scores unavailable.`
+    })];
+  }).slice(0, limit);
+  if (!items.length) throw new Error('Reddit RSS returned no posts.');
+  return items;
 }
 
 async function fetchCustomRedditSource(region) {
@@ -89,7 +136,7 @@ async function fetchCustomRedditSource(region) {
       });
     });
   } catch (error) {
-    return sampleRedditTrends(region, `Reddit custom fallback: ${formatFetchError(error)}`, 'sample-fallback');
+    throw new Error(`Reddit custom source failed: ${formatFetchError(error)}`);
   }
 }
 
@@ -238,35 +285,6 @@ function normalizeSort(value) {
   return ['hot', 'top', 'new', 'rising'].includes(sort) ? sort : 'hot';
 }
 
-function sampleRedditTrends(region, message = '', sourceType = 'sample') {
-  const rows = [
-    ['AI tools people actually use at work', 182000, 'technology', 'tech'],
-    ['What movie scene still gives you chills?', 149000, 'movies', 'entertainment'],
-    ['A tiny indie game suddenly breaks out', 112000, 'gaming', 'gaming'],
-    ['Personal finance habits that changed your year', 88000, 'personalfinance', 'finance'],
-    ['New telescope image discussion thread', 76000, 'space', 'science'],
-    ['Travelers share underrated city tips', 65000, 'travel', 'travel'],
-    ['Today I learned a strange history fact', 62000, 'todayilearned', 'education'],
-    ['Simple recipe thread taking over the weekend', 51000, 'food', 'food']
-  ];
-
-  return rows.map(([title, heat, subreddit, category], index) =>
-    createTrend({
-      platform: 'reddit',
-      title,
-      rank: index + 1,
-      heat,
-      url: `https://www.reddit.com/r/${subreddit}/`,
-      region,
-      category,
-      tags: ['reddit', `r/${subreddit}`, 'sample'],
-      summary: `r/${subreddit}`,
-      sourceType,
-      sourceMessage: message
-    })
-  );
-}
-
 function inferCategory(value = '') {
   const text = String(value).toLowerCase();
   if (/ai|tech|software|programming|privacy|security|iphone|android|gadget/.test(text)) return 'tech';
@@ -307,5 +325,6 @@ function formatFetchError(error) {
 }
 
 module.exports = {
-  fetchRedditTrends
+  fetchRedditTrends,
+  parseRedditRss
 };

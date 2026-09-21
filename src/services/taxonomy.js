@@ -1,4 +1,6 @@
 const PLATFORM_REGISTRY = {
+  steam: platform('steam', 'Steam 热销精选', 'overseas', '海外', 'US', 'gaming-chart', '游戏榜单'),
+  imdb_movie: platform('imdb_movie', 'IMDB 热门电影', 'overseas', '海外', 'global', 'film-tv', '影视榜单'),
   weibo: platform('weibo', '微博', 'domestic', '国内', 'CN', 'social-trend', '热搜平台'),
   x: platform('x', 'X', 'overseas', '海外', 'US', 'social-trend', '热搜平台'),
   reddit: platform('reddit', 'Reddit', 'overseas', '海外', 'US', 'community', '社区趋势'),
@@ -116,9 +118,10 @@ function getPlatformMeta(platformId) {
 
 function classifyTrend(title, fallback = 'general', platformId = '') {
   const platformMeta = getPlatformMeta(platformId);
-  if (['gaming-news', 'gaming-industry'].includes(platformMeta.type)) {
+  if (['gaming-news', 'gaming-industry', 'gaming-chart'].includes(platformMeta.type)) {
     return 'gaming';
   }
+  if (platformId === 'imdb_movie') return 'entertainment';
 
   const value = String(title || '');
   for (const rule of CATEGORY_RULES) {

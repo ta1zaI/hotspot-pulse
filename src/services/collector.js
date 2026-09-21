@@ -12,6 +12,8 @@ const { fetchGameresTrends } = require('../connectors/gameres');
 const { fetchNadianshiTrends } = require('../connectors/nadianshi');
 const { fetchGamelookTrends } = require('../connectors/gamelook');
 const { fetchAiHotTrends } = require('../connectors/aihot');
+const { fetchSteamTrends } = require('../connectors/steam');
+const { fetchImdbMovieTrends } = require('../connectors/imdb');
 const {
   fetchDoubanMovieTrends,
   fetchDoubanNowPlayingTrends,
@@ -26,6 +28,8 @@ loadEnv();
 
 const CONNECTORS = [
   { ...PLATFORM_REGISTRY.weibo, run: fetchWeiboTrends },
+  { ...PLATFORM_REGISTRY.steam, run: fetchSteamTrends },
+  { ...PLATFORM_REGISTRY.imdb_movie, run: fetchImdbMovieTrends },
   { ...PLATFORM_REGISTRY.gamersky, run: fetchGamerskyTrends },
   { ...PLATFORM_REGISTRY.threedm, run: fetchThreeDmTrends },
   { ...PLATFORM_REGISTRY.yystv, run: fetchYystvTrends },
@@ -183,16 +187,22 @@ function activeConnectors() {
 }
 
 function previousItemsForConnector(snapshot, platformId) {
-  return (snapshot?.items || []).filter((item) => item.platform === platformId);
+  return (snapshot?.items || []).filter((item) => item.platform === platformId && isSuccessfulItem(item));
 }
 
 function cachedItemsForConnector(cache, platformId) {
-  const items = cache?.[platformId]?.items;
+  const items = cache?.[platformId]?.items?.filter(isSuccessfulItem);
   return Array.isArray(items) && items.length ? items : null;
+}
+
+function isSuccessfulItem(item) {
+  return ['api', 'public-page', 'public-api', 'custom-json', 'rss', 'public-proxy'].includes(item?.sourceType);
 }
 
 function includeInAggregate(item) {
   return ![
+    'steam',
+    'imdb_movie',
     'bilibili_daily',
     'bilibili_weekly',
     'douban_nowplaying',

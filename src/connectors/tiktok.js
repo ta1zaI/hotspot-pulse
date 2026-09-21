@@ -1,4 +1,5 @@
-const { createTrend, fetchJsonWithPowerShell, fetchWithTimeout } = require('./shared');
+const { createTrend } = require('./shared');
+const { requestJson } = require('./request');
 
 async function fetchTikTokTrends({ region = 'global' } = {}) {
   const source = (process.env.TIKTOK_SOURCE || 'creative-center').toLowerCase();
@@ -13,98 +14,85 @@ async function fetchTikTokTrends({ region = 'global' } = {}) {
 async function fetchCreativeCenter(region) {
   const country = process.env.TIKTOK_CREATIVE_CENTER_COUNTRY || 'US';
   const period = process.env.TIKTOK_CREATIVE_CENTER_PERIOD || '7';
-  const endpoint = `https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/en?countryCode=${encodeURIComponent(country)}&period=${encodeURIComponent(period)}`;
+  const endpoint = 'https://ads.tiktok.com/CreativeOne/KnowledgeAPI/GetHashtagList';
+  const cookie = String(process.env.TIKTOK_COOKIE || '').trim();
+  const headers = {
+    'Content-Type': 'application/json',
+    Referer: 'https://ads.tiktok.com/creative/creativeCenter/trends/hashtag',
+    Origin: 'https://ads.tiktok.com'
+  };
+  if (cookie) headers.Cookie = cookie;
+  if (cookie && process.env.TIKTOK_CSRF_TOKEN) headers['x-secsdk-csrf-token'] = process.env.TIKTOK_CSRF_TOKEN;
 
   try {
-    const response = await fetchTikTokPage(endpoint, Number(process.env.TIKTOK_TIMEOUT_MS || 8000));
-
-    if (!response.ok) {
-      throw new Error(`TikTok Creative Center failed with ${response.status}`);
+    const records = [];
+    const seen = new Set();
+    const pageSize = 20;
+    for (let page = 1; page <= 50; page += 1) {
+      const payload = await requestJson(endpoint, {
+        method: 'POST', headers,
+        body: JSON.stringify({ countryCode: country, timeRange: Number(period), page, limit: pageSize })
+      }, Number(process.env.TIKTOK_TIMEOUT_MS || 8000));
+      const rows = parseCreativeCenterHashtags(payload);
+      if (cookie && page === 1 && rows.length <= 3) {
+        throw new Error('TikTok 登录态未生效或权限不足，仍只返回预览条目；请更新本地 TIKTOK_COOKIE。');
+      }
+      const previousCount = records.length;
+      for (const row of rows) {
+        const key = row.hashtagName.trim().replace(/^#/, '').toLowerCase();
+        if (!seen.has(key)) { seen.add(key); records.push(row); }
+      }
+      const pagination = payload.pagination || {};
+      const total = Number(pagination.totalCount);
+      const hasMore = typeof pagination.hasMore === 'boolean' ? pagination.hasMore
+        : Number.isFinite(total) && total > 0 ? records.length < total : rows.length >= pageSize;
+      if (!cookie || !hasMore) break;
+      // Reject partial results instead of replacing the last complete cached chart.
+      if (records.length === previousCount || page === 50) {
+        throw new Error('TikTok 分页未能完整结束，已保留上次成功数据。');
+      }
     }
 
-    const html = await response.text();
-    const records = parseCreativeCenterHashtags(html);
-
-    if (!records.length) {
-      throw new Error('TikTok Creative Center page loaded, but no hashtag rows were found.');
-    }
-
-    return records.slice(0, 30).map((item, index) => {
-      const hashtag = item.hashtagName || item.hashtag_name || item.name || `tiktoktrend${index + 1}`;
-      const tag = hashtag.replace(/^#/, '');
+    return records.map((item, index) => {
+      const tag = item.hashtagName.trim().replace(/^#/, '');
 
       return createTrend({
         platform: 'tiktok',
         title: `#${tag}`,
-        rank: Number(item.rank || index + 1),
-        heat: Number(item.videoViews || item.view_count || item.views || item.publishCnt) || null,
+        rank: Number(item.rankIndex || item.rank || index + 1),
+        heat: Number(item.vv || item.videoViews || item.view_count || item.views) || null,
         url: `https://www.tiktok.com/tag/${encodeURIComponent(tag)}`,
         region: country || region,
         category: inferCategory(item.industryInfo?.value || tag),
         tags: ['tiktok', 'creative-center'],
-        summary: 'TikTok hashtag trend collected from Creative Center public page data.',
-        sourceType: 'public-page',
-        sourceMessage: `TikTok Creative Center hashtags, country ${country}, period ${period} days.`
+        summary: `TikTok ${country} · ${period} days · ${Number(item.publishCnt) || 0} posts`,
+        sourceType: 'public-api',
+        sourceMessage: `TikTok Creative Center hashtags, country ${country}, period ${period} days; ${cookie ? 'authenticated chart' : 'public preview'} (${records.length} entries).`
       });
     });
   } catch (error) {
-    return sampleTikTokTrends(region, `TikTok Creative Center fallback: ${formatFetchError(error)}`, 'sample-fallback');
+    throw new Error(`TikTok Creative Center: ${formatFetchError(error)}`);
   }
 }
 
-async function fetchTikTokPage(endpoint, timeoutMs = 8000) {
-  const headers = {
-    Accept: 'text/html,application/xhtml+xml',
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36'
-  };
-
-  try {
-    return await fetchWithTimeout(endpoint, { headers }, timeoutMs);
-  } catch (error) {
-    if (process.platform !== 'win32') {
-      throw error;
-    }
-
-    return fetchJsonWithPowerShell(endpoint, headers);
-  }
-}
-
-function parseCreativeCenterHashtags(html) {
-  const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-  if (!match) return [];
-
-  const payload = JSON.parse(decodeHtml(match[1]));
-  const arrays = [];
-  collectArrays(payload, arrays);
-
-  return (
-    arrays.find((array) =>
-      array.some((item) => item && typeof item === 'object' && (item.hashtagName || item.hashtag_name || item.hashtagId))
-    ) || []
-  );
-}
-
-function collectArrays(value, arrays) {
-  if (!value || typeof value !== 'object') return;
-
-  if (Array.isArray(value)) {
-    arrays.push(value);
-    value.forEach((item) => collectArrays(item, arrays));
-    return;
-  }
-
-  Object.values(value).forEach((item) => collectArrays(item, arrays));
+function parseCreativeCenterHashtags(payload) {
+  if (Number(payload?.BaseResp?.StatusCode) !== 0) throw new Error('Hashtag API returned an unsuccessful response.');
+  const seen = new Set();
+  const rows = (Array.isArray(payload.items) ? payload.items : []).filter((item) => {
+    const name = typeof item?.hashtagName === 'string' ? item.hashtagName.trim().toLowerCase() : '';
+    if (!name || seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+  if (!rows.length) throw new Error('Hashtag API returned no hashtags.');
+  return rows;
 }
 
 async function fetchCustomTikTokSource(region) {
   const url = process.env.TIKTOK_TRENDS_URL;
 
   if (!url) {
-    return sampleTikTokTrends(
-      region,
-      'Set TIKTOK_TRENDS_URL in .env to connect a compliant TikTok data provider or your own collector.'
-    );
+    throw new Error('TikTok custom source requires TIKTOK_TRENDS_URL.');
   }
 
   try {
@@ -121,13 +109,7 @@ async function fetchCustomTikTokSource(region) {
         process.env.TIKTOK_TRENDS_API_KEY;
     }
 
-    const response = await fetchWithTimeout(url, { headers });
-
-    if (!response.ok) {
-      throw new Error(`TikTok trend source failed with ${response.status}`);
-    }
-
-    const payload = await response.json();
+    const payload = await requestJson(url, { headers });
     const records = normalizeTrendRecords(payload);
 
     if (!records.length) {
@@ -160,7 +142,7 @@ async function fetchCustomTikTokSource(region) {
       });
     });
   } catch (error) {
-    return sampleTikTokTrends(region, `TikTok fallback: ${formatFetchError(error)}`, 'sample-fallback');
+    throw new Error(`TikTok custom source: ${formatFetchError(error)}`);
   }
 }
 
@@ -174,35 +156,6 @@ function normalizeTrendRecords(payload) {
   return [];
 }
 
-function sampleTikTokTrends(region, message = '', sourceType = 'sample') {
-  const rows = [
-    ['#DeskSetup', 1580000, 'lifestyle'],
-    ['AI Avatar Workflow', 1264000, 'tech'],
-    ['Summer Travel Hack', 984000, 'travel'],
-    ['Indie Game Clip', 802000, 'gaming'],
-    ['Creator Economy Tips', 744000, 'business'],
-    ['Street Food Map', 692000, 'food'],
-    ['Workout Reset', 588000, 'health'],
-    ['Micro Drama Edit', 533000, 'entertainment']
-  ];
-
-  return rows.map(([title, heat, category], index) =>
-    createTrend({
-      platform: 'tiktok',
-      title,
-      rank: index + 1,
-      heat,
-      url: `https://www.tiktok.com/search?q=${encodeURIComponent(title)}`,
-      region,
-      category,
-      tags: ['tiktok', 'sample'],
-      summary: 'Sample TikTok trend shown until a public or custom source is configured.',
-      sourceType,
-      sourceMessage: message
-    })
-  );
-}
-
 function inferCategory(value = '') {
   const text = String(value).toLowerCase();
   if (text.includes('ai') || text.includes('workflow') || text.includes('app') || text.includes('tech')) return 'tech';
@@ -213,16 +166,6 @@ function inferCategory(value = '') {
   if (text.includes('baby') || text.includes('kids') || text.includes('maternity')) return 'lifestyle';
   if (text.includes('workout') || text.includes('health')) return 'health';
   return 'entertainment';
-}
-
-function decodeHtml(value = '') {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#39;/g, "'");
 }
 
 function formatFetchError(error) {
@@ -241,5 +184,6 @@ function formatFetchError(error) {
 }
 
 module.exports = {
-  fetchTikTokTrends
+  fetchTikTokTrends,
+  parseCreativeCenterHashtags
 };

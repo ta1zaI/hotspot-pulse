@@ -653,6 +653,7 @@ function renderPlatformTabs() {
     'ai-news',
     'gaming-news',
     'gaming-industry',
+    'gaming-chart',
     'social-trend',
     'community',
     'short-video',
@@ -669,9 +670,12 @@ function renderPlatformTabs() {
     'ai-news': 'AI 动态',
     'gaming-news': '游戏媒体',
     'gaming-industry': '游戏产业',
+    'gaming-chart': '游戏榜单',
     unknown: '其他平台'
   };
   const iconMap = {
+    steam: 'gamepad-2',
+    imdb_movie: 'clapperboard',
     weibo: 'flame',
     gamersky: 'gamepad-2',
     threedm: 'joystick',
@@ -852,7 +856,11 @@ function renderSources() {
 
   const items = filteredItems();
   if (!items.length) {
-    els.sourceList.innerHTML = '<div class="empty-state">没有匹配的原榜条目</div>';
+    const connector = state.snapshot.connectors?.find((source) => source.id === state.platform);
+    const message = connector?.status === 'error' && !connector.itemCount
+      ? `${connector.label} 暂时不可用：${connector.message || '数据获取失败'}`
+      : '没有匹配的原榜条目';
+    els.sourceList.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
     return;
   }
 
