@@ -466,7 +466,7 @@ async function saveDaily() {
     syncCheckboxes();
     render();
     renderBasket();
-    renderDailyStatus('当前日报已保存。');
+    renderDailyStatus('日报已保存，「看日报」中的当天版本已更新。');
   } catch (error) {
     alert(error.message);
   } finally {

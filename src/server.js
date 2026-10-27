@@ -122,6 +122,7 @@ const server = http.createServer(async (req, res) => {
           usedIndex
         });
         await writeDaily(daily);
+        await archiveDailySnapshot(daily);
         return sendJson(res, 200, daily);
       }
     }
